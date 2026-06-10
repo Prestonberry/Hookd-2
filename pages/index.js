@@ -11,6 +11,7 @@ export default function Home() {
   const [dragOver, setDragOver] = useState(false);
   const [loadingStep, setLoadingStep] = useState(0);
   const fileInputRef = useRef();
+  const replaceInputRef = useRef();
 
   const handleFile = (file) => {
     if (!file || !file.type.startsWith('video/')) return;
@@ -25,7 +26,6 @@ export default function Home() {
     setError(false);
     setLoadingStep(1);
 
-    const steps = [1, 2, 3, 4];
     for (let i = 1; i <= 4; i++) {
       await new Promise(r => setTimeout(r, 900));
       setLoadingStep(i);
@@ -37,7 +37,8 @@ export default function Home() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           filename: videoFile?.name || 'video.mp4',
-          platform
+          platform,
+          filesize: videoFile?.size || 0
         })
       });
 
@@ -65,19 +66,27 @@ export default function Home() {
     setPlatform('TikTok');
   };
 
-  const scoreColor = results ? (results.score >= 70 ? '#00E87A' : results.score >= 55 ? '#FFD600' : '#FF3B00') : '#fff';
+  const replaceVideo = (file) => {
+    if (!file || !file.type.startsWith('video/')) return;
+    setVideoFile(file);
+    setVideoUrl(URL.createObjectURL(file));
+    setResults(null);
+    setError(false);
+  };
+
+  const scoreColor = results ? (results.score >= 75 ? '#00E87A' : results.score >= 63 ? '#FFD600' : results.score >= 50 ? '#FF8C00' : '#FF3B00') : '#fff';
   const priorityClass = (p) => p === 'High' ? 'priority-high' : p === 'Medium' ? 'priority-med' : 'priority-low';
 
   return (
     <>
       <Head>
-        <title>Hookd — Know Why They Stop</title>
+        <title>HookD — Know Why They Stop</title>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
       </Head>
 
       <nav>
-        <div className="logo">Hook<span>d</span></div>
+        <div className="logo">Hook<span>D</span></div>
         <div className="nav-tag">Beta</div>
       </nav>
 
@@ -117,7 +126,10 @@ export default function Home() {
                   <div className="video-filename">{videoFile.name}</div>
                   <div className="video-size">{(videoFile.size / 1024 / 1024).toFixed(1)} MB</div>
                 </div>
-                <div style={{ color: '#00E87A', fontSize: 13, fontWeight: 600 }}>✓ Ready to analyze</div>
+                <button className="replace-btn" onClick={() => replaceInputRef.current.click()}>
+                  ↩ Replace video
+                </button>
+                <input ref={replaceInputRef} type="file" accept="video/*" style={{ display: 'none' }} onChange={(e) => replaceVideo(e.target.files[0])} />
               </div>
             </div>
 
@@ -144,8 +156,7 @@ export default function Home() {
             <div className="loading-steps">
               {['Reading visual contrast & color', 'Detecting hook strength', 'Checking pacing & structure', 'Generating psychology report'].map((s, i) => (
                 <div key={i} className={`loading-step ${loadingStep === i + 1 ? 'active' : loadingStep > i + 1 ? 'done' : ''}`}>
-                  <div className="step-dot" />
-                  {s}
+                  <div className="step-dot" />{s}
                 </div>
               ))}
             </div>
@@ -185,7 +196,13 @@ export default function Home() {
             ))}
           </div>
 
-          <button className="retry-btn" onClick={reset}>← Analyze another video</button>
+          <div className="result-actions">
+            <button className="replace-result-btn" onClick={() => { replaceInputRef.current.click(); }}>
+              ↩ Analyze a different video
+            </button>
+            <input ref={replaceInputRef} type="file" accept="video/*" style={{ display: 'none' }} onChange={(e) => replaceVideo(e.target.files[0])} />
+            <button className="retry-btn" onClick={reset}>+ New Analysis</button>
+          </div>
         </section>
       )}
 
@@ -236,6 +253,8 @@ export default function Home() {
         .video-info { padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; }
         .video-filename { font-size: 14px; font-weight: 500; }
         .video-size { font-size: 12px; color: #888; margin-top: 2px; }
+        .replace-btn { background: transparent; border: 1px solid #2A2A2A; color: #888; padding: 8px 14px; border-radius: 8px; font-size: 13px; cursor: pointer; transition: all 0.2s; font-family: 'Inter', sans-serif; }
+        .replace-btn:hover { border-color: #FF3B00; color: #FF3B00; }
         .platform-select { margin-top: 20px; }
         .platform-select h4 { font-size: 13px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; }
         .platform-options { display: flex; gap: 10px; flex-wrap: wrap; }
@@ -281,8 +300,11 @@ export default function Home() {
         .psych-fact strong { color: #FF3B00; font-weight: 600; }
         .fix-label { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: #00E87A; margin-bottom: 8px; }
         .fix-text { font-size: 14px; color: #FAFAFA; line-height: 1.6; background: rgba(0,232,122,0.06); border: 1px solid rgba(0,232,122,0.2); padding: 12px 14px; border-radius: 8px; }
-        .retry-btn { display: block; width: 100%; margin-top: 32px; padding: 16px; background: transparent; color: #888; border: 1px solid #2A2A2A; border-radius: 12px; font-family: 'Inter', sans-serif; font-size: 15px; font-weight: 500; cursor: pointer; transition: all 0.2s; }
-        .retry-btn:hover { border-color: #FAFAFA; color: #FAFAFA; }
+        .result-actions { display: flex; gap: 12px; margin-top: 32px; }
+        .replace-result-btn { flex: 1; padding: 16px; background: transparent; color: #888; border: 1px solid #2A2A2A; border-radius: 12px; font-family: 'Inter', sans-serif; font-size: 15px; font-weight: 500; cursor: pointer; transition: all 0.2s; }
+        .replace-result-btn:hover { border-color: #FF3B00; color: #FF3B00; }
+        .retry-btn { flex: 1; padding: 16px; background: #FF3B00; color: white; border: none; border-radius: 12px; font-family: 'Syne', sans-serif; font-size: 15px; font-weight: 700; cursor: pointer; transition: all 0.2s; }
+        .retry-btn:hover { background: #e03400; }
         .principles-strip { border-top: 1px solid #2A2A2A; padding: 48px 40px; max-width: 760px; margin: 0 auto; }
         .principles-strip h3 { font-size: 12px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: #888; margin-bottom: 24px; }
         .principles-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
@@ -296,6 +318,7 @@ export default function Home() {
           .upload-section, .results-section { padding: 0 20px 60px; }
           .principles-strip { padding: 40px 20px; }
           .upload-zone { padding: 40px 20px; }
+          .result-actions { flex-direction: column; }
         }
       `}</style>
     </>

@@ -3,18 +3,24 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { filename, platform, filesize, mode, script, flop_context, frames, audioData, videoDuration, cutCount } = req.body;
+  const { 
+    filename, platform, filesize, mode, script, flop_context, 
+    frames, audioData, videoDuration, cutCount, 
+    videoWidth, videoHeight, isVertical, hasAudio,
+    audioType // 'speech', 'music', 'silence', or null
+  } = req.body;
+  
   const analysisMode = mode || 'analyze';
 
   try {
     // ============================================================
-    // ASSEMBLYAI AUDIO ANALYSIS
+    // ASSEMBLYAI AUDIO ANALYSIS WITH AUDIO TYPE DETECTION
     // ============================================================
     async function analyzeAudio(audioBase64) {
       if (!audioBase64 || !process.env.ASSEMBLYAI_API_KEY) return null;
       
       try {
-        // Upload audio to AssemblyAI
+        // Upload audio
         const uploadRes = await fetch('https://api.assemblyai.com/v2/upload', {
           method: 'POST',
           headers: {
@@ -27,7 +33,7 @@ export default async function handler(req, res) {
         if (!uploadRes.ok) return null;
         const { upload_url } = await uploadRes.json();
 
-        // Request transcription with audio intelligence
+        // Request transcription WITH audio type detection
         const transcriptRes = await fetch('https://api.assemblyai.com/v2/transcript', {
           method: 'POST',
           headers: {
@@ -36,9 +42,10 @@ export default async function handler(req, res) {
           },
           body: JSON.stringify({
             audio_url: upload_url,
-            speech_threshold: 0.2,
             filter_profanity: false,
-            disfluencies: true, // detect um, uh, like
+            disfluencies: true,
+            speech_threshold: 0.5, // Higher threshold — only flag as speech if very confident
+            audio_start_from: 0,
           })
         });
 
@@ -60,8 +67,16 @@ export default async function handler(req, res) {
             const duration = transcript.audio_duration || 1;
             const wpm = Math.round((wordCount / duration) * 60);
             
-            // Count filler words
-            const fillerWords = ['um', 'uh', 'like', 'you know', 'basically', 'literally', 'actually', 'so'];
+            // Detect if this is music/lyrics vs real speech
+            // Music lyrics tend to be: short poetic phrases, rhyming, slow WPM, few filler words
+            const looksLikeMusic = (
+              wpm < 60 && // Very slow = likely music
+              wordCount < 20 && // Few words = likely music
+              text.length > 0
+            );
+
+            // Count filler words — only meaningful if it's speech
+            const fillerWords = ['um', 'uh', 'like', 'you know', 'basically', 'literally', 'actually'];
             let fillerCount = 0;
             fillerWords.forEach(fw => {
               const matches = text.toLowerCase().match(new RegExp('\\b' + fw + '\\b', 'g'));
@@ -69,12 +84,14 @@ export default async function handler(req, res) {
             });
 
             return {
-              transcript: text.substring(0, 500),
+              transcript: text.substring(0, 300),
               wordCount,
               wpm,
               fillerCount,
               duration: Math.round(duration),
-              hasContent: wordCount > 0
+              hasContent: wordCount > 3,
+              looksLikeMusic,
+              isSpeech: wordCount >= 10 && wpm >= 60 && !looksLikeMusic
             };
           }
           
@@ -92,27 +109,55 @@ export default async function handler(req, res) {
       audioAnalysis = await analyzeAudio(audioData);
     }
 
-    // Build audio context string for Claude
+    // ============================================================
+    // BUILD PRECISE AUDIO CONTEXT
+    // ============================================================
     let audioContext = '';
-    if (!audioAnalysis) {
-      audioContext = 'AUDIO ANALYSIS: No audio data available. Do not give any feedback about voice, speaking pace, or filler words.';
-    } else if (!audioAnalysis.hasContent || audioAnalysis.wordCount < 5) {
-      audioContext = `AUDIO ANALYSIS (AssemblyAI confirmed): NO SPEECH DETECTED in this video. Word count: ${audioAnalysis.wordCount || 0}. This video has no voiceover — it uses only music, sound effects, or silence. Duration: ${audioAnalysis.duration} seconds. IMPORTANT: Do NOT give feedback about speaking pace, WPM, or filler words. Instead, give one finding about whether this video would benefit from a voiceover or text-to-speech narration for ${platform || 'TikTok'} performance.`;
+    
+    if (hasAudio === false) {
+      audioContext = `AUDIO: This video has NO audio track at all. It is completely silent. Give feedback about adding sound.`;
+    } else if (!audioAnalysis) {
+      audioContext = `AUDIO: Video has audio (confirmed by file analysis) but transcription was unavailable. Do not comment on speaking pace or lyrics. Do give feedback on the importance of audio strategy for ${platform || 'TikTok'}.`;
+    } else if (!audioAnalysis.hasContent || audioAnalysis.wordCount <= 3) {
+      audioContext = `AUDIO: Video has audio confirmed. AssemblyAI detected ${audioAnalysis.wordCount} words — this is likely background music, ambient sound, or sound effects with no voiceover. Duration: ${audioAnalysis.duration}s. DO NOT give feedback about speaking pace or voice quality. DO give feedback about whether adding a voiceover on top of the music would improve performance.`;
+    } else if (audioAnalysis.looksLikeMusic) {
+      audioContext = `AUDIO: AssemblyAI detected what appears to be SONG LYRICS or music (${audioAnalysis.wordCount} words at ${audioAnalysis.wpm} WPM — characteristic of music not speech). Transcript: "${audioAnalysis.transcript}". DO NOT critique this as the creator's speaking pace. DO give feedback about voiceover strategy — should they add their own voice on top of this music?`;
     } else {
-      audioContext = `AUDIO ANALYSIS (AssemblyAI confirmed real data): Audio detected. Words transcribed: ${audioAnalysis.wordCount}. Speaking pace: ${audioAnalysis.wpm} WPM. Filler words: ${audioAnalysis.fillerCount}. Duration: ${audioAnalysis.duration} seconds. Transcript: "${audioAnalysis.transcript}".
-
-CRITICAL INSTRUCTION: Before giving any speaking pace feedback, determine if the transcript looks like SONG LYRICS or MUSIC (short poetic phrases, rhyming words, repeated lines, or content that sounds like a song). If it looks like music/lyrics, DO NOT critique speaking pace — instead note that background music was detected and give feedback on whether the creator should add their own voiceover on top. Only give WPM/pace/filler word feedback if the transcript clearly sounds like someone talking directly to camera.`;
+      audioContext = `AUDIO: Creator is SPEAKING in this video (confirmed speech). Words: ${audioAnalysis.wordCount}. Pace: ${audioAnalysis.wpm} WPM (optimal for ${platform || 'TikTok'}: 130-160 WPM). Filler words: ${audioAnalysis.fillerCount}. Duration: ${audioAnalysis.duration}s. Transcript: "${audioAnalysis.transcript}". Give specific feedback on their actual speaking pace and filler words.`;
     }
 
-    // Build pacing context
-    const pacingContext = (videoDuration && cutCount !== undefined) ? `
-PACING ANALYSIS:
-- Video duration: ${videoDuration} seconds
-- Number of cuts detected: ${cutCount}
-- Average time between cuts: ${cutCount > 0 ? (videoDuration / cutCount).toFixed(1) : 'unknown'} seconds
-- Optimal cuts for ${platform || 'TikTok'}: every 1-3 seconds for high energy content
-` : `PACING ANALYSIS: No pacing data provided.`;
+    // ============================================================
+    // BUILD PRECISE VIDEO DIMENSIONS CONTEXT
+    // ============================================================
+    let orientationContext = '';
+    if (videoWidth && videoHeight) {
+      const orientation = videoHeight > videoWidth ? 'VERTICAL' : videoWidth > videoHeight ? 'HORIZONTAL/LANDSCAPE' : 'SQUARE';
+      const aspectRatio = `${videoWidth}x${videoHeight}`;
+      const isOptimal = videoHeight > videoWidth; // vertical is optimal for TikTok/Reels
+      orientationContext = `VIDEO DIMENSIONS: Confirmed ${orientation} video (${aspectRatio} pixels). ${isOptimal ? 'Good — vertical is correct for ' + (platform || 'TikTok') + '. Do NOT suggest they reshoot in vertical.' : 'WARNING: This is ' + orientation + ' format. ' + (platform || 'TikTok') + ' is a vertical-first platform — this is a real problem to address.'}`;
+    } else if (isVertical !== undefined) {
+      orientationContext = `VIDEO ORIENTATION: ${isVertical ? 'VERTICAL (correct for ' + (platform || 'TikTok') + ') — do NOT suggest reshoot in vertical' : 'HORIZONTAL — this is a problem for ' + (platform || 'TikTok') + ' which is vertical-first'}.`;
+    } else {
+      orientationContext = `VIDEO ORIENTATION: Unknown — do not make assumptions about orientation.`;
+    }
 
+    // ============================================================
+    // BUILD PRECISE PACING CONTEXT  
+    // ============================================================
+    let pacingContext = '';
+    if (videoDuration && videoDuration > 0) {
+      if (cutCount !== undefined && cutCount !== null) {
+        pacingContext = `PACING: Video is ${videoDuration} seconds long. Our cut detection algorithm found ${cutCount} cuts. IMPORTANT: Our algorithm detects hard cuts via brightness changes — it may UNDERCOUNT cuts that use smooth transitions, zoom effects, or subtle TikTok-style edits. If cutCount is low, say cuts may be present but hard to detect, rather than claiming zero cuts definitively. Optimal for ${platform || 'TikTok'}: 1 cut every 1-3 seconds = ${Math.round(videoDuration / 2)} cuts minimum for this length video.`;
+      } else {
+        pacingContext = `PACING: Video is ${videoDuration} seconds long. Cut count unavailable — do not make definitive claims about cut count.`;
+      }
+    } else {
+      pacingContext = `PACING: Duration unknown — do not make definitive claims about video length or cut count.`;
+    }
+
+    // ============================================================
+    // BUILD PROMPTS
+    // ============================================================
     let prompt = '';
     let messageContent = [];
 
@@ -123,7 +168,6 @@ PACING ANALYSIS:
       const finalScore = Math.min(88, Math.max(35, scoreBase + scoreAdjust));
       const scoreLabel = finalScore >= 75 ? 'Strong' : finalScore >= 63 ? 'Good' : finalScore >= 50 ? 'Fair' : 'Poor';
 
-      // Add frames
       if (frames && frames.length > 0) {
         frames.forEach(frame => {
           messageContent.push({
@@ -133,41 +177,36 @@ PACING ANALYSIS:
         });
       }
 
-      prompt = `You are HookD, a brutally honest AI content analyst. No filter. Curse freely. Savage and funny. But genuinely want creators to win so advice is extremely detailed and specific.
+      prompt = `You are HookD, the most brutally honest AI content analyst on the internet. No filter. Profanity welcome. Savage and funny. But you back everything up with SPECIFIC observations from the actual data you have — not guesses.
 
-${frames && frames.length > 0 ? `You have been given ${frames.length} REAL frames extracted from the creator's actual video. You can SEE what is in this video. Reference specific things you observe: actual background, actual colors, lighting, whether there is a face, text visible, setting, clothing, environment. Be SPECIFIC to what you see.` : ''}
+REAL DATA YOU HAVE ABOUT THIS VIDEO:
+${frames && frames.length > 0 ? `VISUAL: You have been given ${frames.length} actual frames extracted from the video. You can SEE the real content. Reference SPECIFIC things: exact colors, exact backgrounds, exact lighting, what objects are visible, text on screen, whether a face is present, clothing colors, room details.` : 'VISUAL: No frames available.'}
+
+${orientationContext}
 
 ${audioContext}
 
 ${pacingContext}
 
-Video: "${filename || 'video.mp4'}" | Size: ${fs} bytes | Platform: ${platform || 'TikTok'}
+Video file: "${filename || 'video.mp4'}" | Platform: ${platform || 'TikTok'}
 Use EXACTLY: score ${finalScore}, scoreLabel "${scoreLabel}"
 
-YOUR JOB: Find EVERY problem. Use ALL the data you have — visual frames, audio analysis, pacing data. Be specific to what you actually know about this video.
+CRITICAL RULES:
+1. Only state things as fact if you have confirmed data above. If uncertain, say "appears to" or "based on the frames."
+2. If video is confirmed vertical — DO NOT suggest shooting vertical. It already is.
+3. If audio is music not speech — DO NOT critique speaking pace.
+4. If cut count may be underestimated — say "at least X cuts detected" not "zero cuts."
+5. Reference SPECIFIC things you actually see in the frames — colors, objects, settings.
+6. Be savage, funny, and use profanity — but make sure every roast is based on something real you observed.
 
-Analyze every dimension:
-- Visual contrast & color (from frames)
-- Hook & first 3 seconds (from frames)  
-- Lighting (from frames)
-- Background & environment (from frames)
-- Body language & presence (from frames)
-- Text overlays visible (from frames)
-- Speaking pace ${audioAnalysis ? `(${audioAnalysis.wpm} WPM detected)` : ''}
-- Filler words ${audioAnalysis ? `(${audioAnalysis.fillerCount} detected)` : ''}
-- Audio clarity & energy
-- Cut frequency & pacing
-- Call to action
-- Platform optimization for ${platform || 'TikTok'}
+Find EVERY problem across all dimensions: visual contrast, color, hook, first 3 seconds, lighting, background, body language, text overlays, audio strategy, pacing, call to action, platform optimization, thumbnail potential, emotional engagement.
 
 For EACH finding:
-- roast: 3-4 sentences savage funny roasting with profanity. REFERENCE SPECIFIC THINGS YOU ACTUALLY KNOW about this video. If you see a green wall, mention the green wall. If 180 WPM detected, roast the speed. Be SPECIFIC not generic.
-- psychFact: real behavioral science with specific numbers where possible
-- fix: extremely detailed fix with exact numbers. Reference what you actually observed. Minimum 4 sentences. End with "We're bullying you out of love ❤️"
+- roast: 3-4 sentences savage funny roast with profanity. Reference SPECIFIC things from your data — actual colors you see, actual audio data, actual dimensions. Make it feel like you watched every second.
+- psychFact: real behavioral science with specific stats/numbers
+- fix: detailed actionable fix with exact steps and numbers. Minimum 4 sentences. End: "We're bullying you out of love ❤️"
 
-Sort: Critical → High → Medium → Polish
-Generate 6-10 findings.
-Only give audio findings if audio data was provided.
+Sort: Critical → High → Medium → Polish. Generate 6-10 findings.
 
 RESPOND WITH ONLY VALID JSON. NO TEXT BEFORE OR AFTER. START WITH { END WITH }
 
@@ -179,11 +218,11 @@ RESPOND WITH ONLY VALID JSON. NO TEXT BEFORE OR AFTER. START WITH { END WITH }
     {
       "rank": 1,
       "importance": "Critical",
-      "category": "Visual Contrast",
-      "icon": "👁️",
-      "iconClass": "icon-visual",
-      "title": "Specific title referencing what you see",
-      "roast": "Savage specific roast referencing actual observations",
+      "category": "Hook Strength",
+      "icon": "🎯",
+      "iconClass": "icon-hook",
+      "title": "Specific title based on what you actually see",
+      "roast": "Savage specific roast referencing actual observed data",
       "psychFact": "Real psychology with numbers",
       "fix": "Detailed specific fix. We're bullying you out of love ❤️"
     }
@@ -193,23 +232,29 @@ RESPOND WITH ONLY VALID JSON. NO TEXT BEFORE OR AFTER. START WITH { END WITH }
       messageContent.push({ type: 'text', text: prompt });
 
     } else if (analysisMode === 'rehook') {
-      prompt = `You are HookD's Re-Hook engine. Rewrite this hook 5 ways using proven psychological frameworks.
+      prompt = `You are HookD's Re-Hook engine. You are a world class viral content strategist.
 
+Rewrite this hook 5 ways using proven psychological frameworks:
 Original: "${script || 'No script provided'}"
 Platform: "${platform || 'TikTok'}"
 
-Each rewrite: completely different structure, works spoken in first 3 seconds, specific to the topic, genuinely good enough to go viral.
+Rules:
+- Each must be completely different in structure and opening word
+- Must work spoken in the first 3 seconds
+- Must be specific to the original topic — not generic
+- Must be genuinely good enough to go viral
+- Vary length: some punchy under 8 words, some up to 20 words
 
 RESPOND WITH ONLY VALID JSON. NO TEXT BEFORE OR AFTER. START WITH { END WITH }
 
 {
-  "original": "the original hook",
+  "original": "the original hook text here",
   "hooks": [
-    {"style": "Curiosity Gap", "emoji": "🧠", "hook": "rewritten hook", "why": "psychological reason", "spokenDuration": "2s"},
-    {"style": "Controversy", "emoji": "🔥", "hook": "rewritten hook", "why": "psychological reason", "spokenDuration": "2s"},
-    {"style": "Relatability", "emoji": "😭", "hook": "rewritten hook", "why": "psychological reason", "spokenDuration": "2s"},
-    {"style": "Shock Stat", "emoji": "📊", "hook": "rewritten hook", "why": "psychological reason", "spokenDuration": "2s"},
-    {"style": "Story Open", "emoji": "🎬", "hook": "rewritten hook", "why": "psychological reason", "spokenDuration": "2s"}
+    {"style": "Curiosity Gap", "emoji": "🧠", "hook": "rewritten hook", "why": "specific psychological mechanism", "spokenDuration": "2s"},
+    {"style": "Controversy", "emoji": "🔥", "hook": "rewritten hook", "why": "specific psychological mechanism", "spokenDuration": "2s"},
+    {"style": "Relatability", "emoji": "😭", "hook": "rewritten hook", "why": "specific psychological mechanism", "spokenDuration": "2s"},
+    {"style": "Shock Stat", "emoji": "📊", "hook": "rewritten hook", "why": "specific psychological mechanism", "spokenDuration": "2s"},
+    {"style": "Story Open", "emoji": "🎬", "hook": "rewritten hook", "why": "specific psychological mechanism", "spokenDuration": "2s"}
   ]
 }`;
       messageContent = [{ type: 'text', text: prompt }];
@@ -226,30 +271,31 @@ RESPOND WITH ONLY VALID JSON. NO TEXT BEFORE OR AFTER. START WITH { END WITH }
         });
       }
 
-      prompt = `You are HookD's Why Did This Flop analyzer. Most brutally honest, funniest content critic alive. Zero filter. Profanity required. Specific funny comparisons. Resurrection advice is extremely detailed and genuinely helpful.
+      prompt = `You are HookD's Why Did This Flop analyzer. Most brutally honest content critic alive. Zero filter. Profanity required. Funny specific comparisons. But resurrection advice is extremely detailed and genuinely helpful.
 
-${frames && frames.length > 0 ? `You have ${frames.length} REAL frames from the video. Reference specific things you actually see.` : ''}
-
+REAL DATA ABOUT THIS VIDEO:
+${frames && frames.length > 0 ? `VISUAL: ${frames.length} real frames from the video. Reference SPECIFIC things you see.` : 'VISUAL: No frames.'}
+${orientationContext}
 ${audioContext}
 ${pacingContext}
 
-Video: "${filename || 'video.mp4'}" | Size: ${fs} bytes | Platform: "${platform || 'TikTok'}"
-Context: "${flop_context || 'No context provided'}"
+Video: "${filename || 'video.mp4'}" | Platform: "${platform || 'TikTok'}"
+Creator context: "${flop_context || 'No context provided'}"
 
-Use ALL available data — frames, audio analysis, pacing — to give specific reasons this flopped.
+CRITICAL RULES: Only state as fact what you have confirmed data for. Reference specific things you actually see in frames. Don't guess orientation, don't misidentify music as speech.
 
 RESPOND WITH ONLY VALID JSON. NO TEXT BEFORE OR AFTER. START WITH { END WITH }
 
 {
-  "verdict": "Savage specific opening paragraph referencing things you actually know about this video",
+  "verdict": "Savage opening referencing specific things you actually observe in the data",
   "autopsy": [
-    {"rank": 1, "reason": "Specific reason", "roast": "Funny savage specific roast", "data": "Real data or psychology", "impact": "Critical"},
-    {"rank": 2, "reason": "Specific reason", "roast": "Funny savage specific roast", "data": "Real data or psychology", "impact": "High"},
-    {"rank": 3, "reason": "Specific reason", "roast": "Funny savage specific roast", "data": "Real data or psychology", "impact": "High"},
-    {"rank": 4, "reason": "Specific reason", "roast": "Funny savage specific roast", "data": "Real data or psychology", "impact": "Medium"}
+    {"rank": 1, "reason": "Specific reason title", "roast": "Funny savage specific roast", "data": "Real data or psychology stat", "impact": "Critical"},
+    {"rank": 2, "reason": "Specific reason title", "roast": "Funny savage specific roast", "data": "Real data or psychology stat", "impact": "High"},
+    {"rank": 3, "reason": "Specific reason title", "roast": "Funny savage specific roast", "data": "Real data or psychology stat", "impact": "High"},
+    {"rank": 4, "reason": "Specific reason title", "roast": "Funny savage specific roast", "data": "Real data or psychology stat", "impact": "Medium"}
   ],
-  "resurrection": "Minimum 6 sentences extremely specific detailed actionable advice based on what you actually know about this video",
-  "closer": "One final savage funny specific sentence. We're bullying you out of love ❤️"
+  "resurrection": "Minimum 6 sentences of extremely specific actionable advice based on confirmed data. Exact numbers. Exact steps.",
+  "closer": "One final savage funny sentence based on something specific you observed. We're bullying you out of love ❤️"
 }`;
 
       messageContent.push({ type: 'text', text: prompt });
@@ -280,8 +326,8 @@ RESPOND WITH ONLY VALID JSON. NO TEXT BEFORE OR AFTER. START WITH { END WITH }
     const lastBrace = text.lastIndexOf('}');
 
     if (firstBrace === -1 || lastBrace === -1) {
-      console.error('No JSON in response:', text);
-      return res.status(500).json({ error: 'Invalid response' });
+      console.error('No JSON in response:', text.substring(0, 200));
+      return res.status(500).json({ error: 'Invalid response format' });
     }
 
     const result = JSON.parse(text.substring(firstBrace, lastBrace + 1));

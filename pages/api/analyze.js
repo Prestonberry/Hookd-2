@@ -99,7 +99,9 @@ export default async function handler(req, res) {
     } else if (!audioAnalysis.hasContent || audioAnalysis.wordCount < 5) {
       audioContext = `AUDIO ANALYSIS (AssemblyAI confirmed): NO SPEECH DETECTED in this video. Word count: ${audioAnalysis.wordCount || 0}. This video has no voiceover — it uses only music, sound effects, or silence. Duration: ${audioAnalysis.duration} seconds. IMPORTANT: Do NOT give feedback about speaking pace, WPM, or filler words. Instead, give one finding about whether this video would benefit from a voiceover or text-to-speech narration for ${platform || 'TikTok'} performance.`;
     } else {
-      audioContext = `AUDIO ANALYSIS (AssemblyAI confirmed real data): Speech detected. Words spoken: ${audioAnalysis.wordCount}. Speaking pace: ${audioAnalysis.wpm} WPM (optimal for TikTok: 130-160 WPM). Filler words: ${audioAnalysis.fillerCount}. Duration: ${audioAnalysis.duration} seconds. Transcript: "${audioAnalysis.transcript}". ONLY give voice/pace feedback because speech was confirmed.`;
+      audioContext = `AUDIO ANALYSIS (AssemblyAI confirmed real data): Audio detected. Words transcribed: ${audioAnalysis.wordCount}. Speaking pace: ${audioAnalysis.wpm} WPM. Filler words: ${audioAnalysis.fillerCount}. Duration: ${audioAnalysis.duration} seconds. Transcript: "${audioAnalysis.transcript}".
+
+CRITICAL INSTRUCTION: Before giving any speaking pace feedback, determine if the transcript looks like SONG LYRICS or MUSIC (short poetic phrases, rhyming words, repeated lines, or content that sounds like a song). If it looks like music/lyrics, DO NOT critique speaking pace — instead note that background music was detected and give feedback on whether the creator should add their own voiceover on top. Only give WPM/pace/filler word feedback if the transcript clearly sounds like someone talking directly to camera.`;
     }
 
     // Build pacing context

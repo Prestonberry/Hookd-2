@@ -93,17 +93,14 @@ export default async function handler(req, res) {
     }
 
     // Build audio context string for Claude
-    const audioContext = audioAnalysis ? `
-AUDIO ANALYSIS (from AssemblyAI — this is real data):
-- Speech detected: ${audioAnalysis.hasContent ? 'Yes' : 'No speech detected'}
-- Words spoken: ${audioAnalysis.wordCount}
-- Speaking pace: ${audioAnalysis.wpm} words per minute (optimal for TikTok: 130-160 WPM)
-- Filler words detected: ${audioAnalysis.fillerCount} (um, uh, like, etc.)
-- Video duration: ${audioAnalysis.duration} seconds
-- Transcript preview: "${audioAnalysis.transcript}"
-` : `
-AUDIO ANALYSIS: No audio data provided. Do not make up audio feedback — skip audio findings or note audio could not be analyzed.
-`;
+    let audioContext = '';
+    if (!audioAnalysis) {
+      audioContext = 'AUDIO ANALYSIS: No audio data available. Do not give any feedback about voice, speaking pace, or filler words.';
+    } else if (!audioAnalysis.hasContent || audioAnalysis.wordCount < 5) {
+      audioContext = `AUDIO ANALYSIS (AssemblyAI confirmed): NO SPEECH DETECTED in this video. Word count: ${audioAnalysis.wordCount || 0}. This video has no voiceover — it uses only music, sound effects, or silence. Duration: ${audioAnalysis.duration} seconds. IMPORTANT: Do NOT give feedback about speaking pace, WPM, or filler words. Instead, give one finding about whether this video would benefit from a voiceover or text-to-speech narration for ${platform || 'TikTok'} performance.`;
+    } else {
+      audioContext = `AUDIO ANALYSIS (AssemblyAI confirmed real data): Speech detected. Words spoken: ${audioAnalysis.wordCount}. Speaking pace: ${audioAnalysis.wpm} WPM (optimal for TikTok: 130-160 WPM). Filler words: ${audioAnalysis.fillerCount}. Duration: ${audioAnalysis.duration} seconds. Transcript: "${audioAnalysis.transcript}". ONLY give voice/pace feedback because speech was confirmed.`;
+    }
 
     // Build pacing context
     const pacingContext = (videoDuration && cutCount !== undefined) ? `

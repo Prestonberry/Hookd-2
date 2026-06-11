@@ -5,9 +5,10 @@ export default async function handler(req, res) {
 
   const { 
     filename, platform, filesize, mode, script, flop_context, 
-    frames, audioData, videoDuration, cutCount, 
+    frames, audioData, videoDuration, cutCount,
+    cutTimestamps, avgSecsBetweenCuts,
     videoWidth, videoHeight, isVertical, hasAudio,
-    audioType // 'speech', 'music', 'silence', or null
+    audioType, railwaySummary, audioAnalysis: railwayAudioAnalysis
   } = req.body;
   
   const analysisMode = mode || 'analyze';
@@ -145,11 +146,14 @@ export default async function handler(req, res) {
     // BUILD PRECISE PACING CONTEXT  
     // ============================================================
     let pacingContext = '';
-    if (videoDuration && videoDuration > 0) {
+    if (railwaySummary) {
+      // Use the full FFmpeg analysis from Railway — this is 100% accurate
+      pacingContext = railwaySummary;
+    } else if (videoDuration && videoDuration > 0) {
       if (cutCount !== undefined && cutCount !== null) {
-        pacingContext = `PACING: Video is ${videoDuration} seconds long. Our cut detection algorithm found ${cutCount} cuts. IMPORTANT: Our algorithm detects hard cuts via brightness changes — it may UNDERCOUNT cuts that use smooth transitions, zoom effects, or subtle TikTok-style edits. If cutCount is low, say cuts may be present but hard to detect, rather than claiming zero cuts definitively. Optimal for ${platform || 'TikTok'}: 1 cut every 1-3 seconds = ${Math.round(videoDuration / 2)} cuts minimum for this length video.`;
+        pacingContext = `PACING: Video is ${videoDuration} seconds long. Estimated cuts: ${cutCount}. NOTE: This is a browser-side estimate — camera movement may cause overcounting. Do not make very confident claims about exact cut count. Optimal for ${platform || 'TikTok'}: 1 cut every 1-2 seconds.`;
       } else {
-        pacingContext = `PACING: Video is ${videoDuration} seconds long. Cut count unavailable — do not make definitive claims about cut count.`;
+        pacingContext = `PACING: Video is ${videoDuration} seconds long. Cut count unavailable.`;
       }
     } else {
       pacingContext = `PACING: Duration unknown — do not make definitive claims about video length or cut count.`;

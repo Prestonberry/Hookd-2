@@ -8,7 +8,8 @@ export default async function handler(req, res) {
     frames, audioData, videoDuration, cutCount,
     cutTimestamps, avgSecsBetweenCuts,
     videoWidth, videoHeight, isVertical, hasAudio,
-    audioType, railwaySummary, audioAnalysis: railwayAudioAnalysis
+    audioType, railwaySummary, audioAnalysis: railwayAudioAnalysis,
+    contentType
   } = req.body;
   
   const analysisMode = mode || 'analyze';
@@ -181,6 +182,17 @@ export default async function handler(req, res) {
         });
       }
 
+      const contentTypeInstructions = {
+        'talking': `CONTENT TYPE: TALKING HEAD / EDUCATIONAL — Focus on: eye contact with camera, energy and delivery, facial expressions, hook statement in first 3 seconds, caption strategy for muted viewing, face lighting, audio clarity, speaking pace, body language. DO NOT heavily critique environment unless actively distracting.`,
+        'lifestyle': `CONTENT TYPE: LIFESTYLE / VLOG — Focus on: visual storytelling, environment and setting, pacing and cuts, lighting across settings, color palette, hook creating curiosity, music matching vibe, text guiding narrative, thumbnail potential. DO NOT heavily critique speaking delivery unless there's a voiceover.`,
+        'business': `CONTENT TYPE: BUSINESS / BRAND / PRODUCT — Focus on: value proposition clarity in 3 seconds, trust and professionalism signals, product/service visibility, clear call to action, hook opening with problem or benefit, text highlighting key benefits, social proof if present. Focus on CONVERSION and CLARITY.`,
+        'aesthetic': `CONTENT TYPE: AESTHETIC / ARTISTIC / MUSIC — Focus on: visual cohesion across frames, color grading consistency, music sync with cuts, mood and atmosphere clarity, visual contrast and composition, uniqueness in feed, pacing relative to music. DO NOT apply talking head or business metrics. Focus on MOOD and VISUAL IMPACT.`,
+        'tutorial': `CONTENT TYPE: HOW-TO / TUTORIAL / FITNESS — Focus on: clarity of instruction, visibility of key actions, pacing to follow along, text labeling steps, hook showing end result or value, camera angles serving instruction, audio clarity, completion motivation. Focus on CLARITY and INSTRUCTIONAL EFFECTIVENESS.`,
+        'entertainment': `CONTENT TYPE: ENTERTAINMENT / COMEDY / SKITS — Focus on: hook energy in first 0.5 seconds, comedy and reaction timing, energy level matching content, pattern interrupts and surprises, sound design for comedic impact, facial expressions and performance, trend execution clarity, rewatchability. Focus on ENTERTAINMENT VALUE and TIMING.`,
+        'commentary': `CONTENT TYPE: NEWS / COMMENTARY / HOT TAKES — Focus on: topic established immediately in hook, credibility signals, energy and conviction, pacing of argument, captions highlighting key points for muted viewers, visual engagement beyond static shot, call to action inviting engagement, background reinforcing personal brand. Focus on AUTHORITY and CLARITY OF ARGUMENT.`
+      };
+      const contentInstruction = contentTypeInstructions[contentType] || `CONTENT TYPE: General short-form content. Analyze all dimensions.`;
+
       prompt = `You are HookD, the most brutally honest AI content analyst on the internet. No filter. Profanity welcome. Savage and funny. But you back everything up with SPECIFIC observations from the actual data you have — not guesses.
 
 REAL DATA YOU HAVE ABOUT THIS VIDEO:
@@ -194,6 +206,8 @@ ${pacingContext}
 
 Video file: "${filename || 'video.mp4'}" | Platform: ${platform || 'TikTok'}
 Use EXACTLY: score ${finalScore}, scoreLabel "${scoreLabel}"
+
+${contentInstruction}
 
 CRITICAL RULES:
 1. Only state things as fact if you have confirmed data above. If uncertain, say "appears to" or "based on the frames."

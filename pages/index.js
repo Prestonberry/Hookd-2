@@ -1,8 +1,8 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import Head from 'next/head';
 
 // Extract video frames as base64 JPEGs
-async function extractFrames(file, numFrames = 6) {
+async function extractFrames(file, numFrames = 8) {
   return new Promise((resolve) => {
     const video = document.createElement('video');
     const canvas = document.createElement('canvas');
@@ -12,14 +12,14 @@ async function extractFrames(file, numFrames = 6) {
 
     video.src = url;
     video.muted = true;
-    video.crossOrigin = 'anonymous';
+    video.playsInline = true;
 
     video.addEventListener('loadedmetadata', () => {
-      canvas.width = 480;
-      canvas.height = Math.round(480 * (video.videoHeight / video.videoWidth)) || 854;
+      canvas.width = 540;
+      canvas.height = Math.round(540 * (video.videoHeight / video.videoWidth)) || 960;
       const duration = video.duration;
       const timestamps = Array.from({ length: numFrames }, (_, i) =>
-        Math.min((duration * 0.05) + (duration * 0.9 * i / Math.max(numFrames - 1, 1)), duration - 0.1)
+        Math.min(0.05 + (duration * 0.9 * i / Math.max(numFrames - 1, 1)), duration - 0.05)
       );
       let index = 0;
 
@@ -35,7 +35,7 @@ async function extractFrames(file, numFrames = 6) {
       video.addEventListener('seeked', () => {
         try {
           ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-          frames.push(canvas.toDataURL('image/jpeg', 0.6).split(',')[1]);
+          frames.push(canvas.toDataURL('image/jpeg', 0.65).split(',')[1]);
         } catch (e) {}
         index++;
         captureNext();
@@ -45,51 +45,83 @@ async function extractFrames(file, numFrames = 6) {
     });
 
     video.addEventListener('error', () => { URL.revokeObjectURL(url); resolve([]); });
-    setTimeout(() => resolve(frames), 15000); // safety timeout
+    setTimeout(() => { URL.revokeObjectURL(url); resolve(frames); }, 20000);
   });
 }
 
-// Extract audio as base64 using Web Audio API
+// Get video metadata (dimensions, duration, has audio)
+async function getVideoMetadata(file) {
+  return new Promise((resolve) => {
+    const video = document.createElement('video');
+    const url = URL.createObjectURL(file);
+    video.src = url;
+    video.muted = true;
+
+    video.addEventListener('loadedmetadata', () => {
+      const metadata = {
+        width: video.videoWidth,
+        height: video.videoHeight,
+        duration: Math.round(video.duration),
+        isVertical: video.videoHeight > video.videoWidth,
+        aspectRatio: `${video.videoWidth}x${video.videoHeight}`
+      };
+      URL.revokeObjectURL(url);
+      resolve(metadata);
+    });
+
+    video.addEventListener('error', () => { URL.revokeObjectURL(url); resolve(null); });
+    setTimeout(() => { URL.revokeObjectURL(url); resolve(null); }, 5000);
+  });
+}
+
+// Extract audio as base64 WAV and detect if audio track exists
 async function extractAudio(file) {
   return new Promise(async (resolve) => {
     try {
       const arrayBuffer = await file.arrayBuffer();
       const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
       
-      // Convert to mono WAV
+      let audioBuffer;
+      try {
+        audioBuffer = await audioCtx.decodeAudioData(arrayBuffer.slice(0));
+      } catch (e) {
+        // No audio track or can't decode
+        resolve({ hasAudio: false, audioBase64: null });
+        return;
+      }
+
       const channelData = audioBuffer.getChannelData(0);
       const sampleRate = audioBuffer.sampleRate;
-      
+
+      // Check if audio is actually silent (all zeros or near-zero)
+      let maxAmplitude = 0;
+      for (let i = 0; i < Math.min(channelData.length, 10000); i++) {
+        maxAmplitude = Math.max(maxAmplitude, Math.abs(channelData[i]));
+      }
+      if (maxAmplitude < 0.001) {
+        resolve({ hasAudio: false, audioBase64: null });
+        return;
+      }
+
       // Downsample to 16kHz for AssemblyAI
       const targetRate = 16000;
       const ratio = sampleRate / targetRate;
       const newLength = Math.floor(channelData.length / ratio);
       const downsampled = new Float32Array(newLength);
-      
       for (let i = 0; i < newLength; i++) {
         downsampled[i] = channelData[Math.floor(i * ratio)];
       }
 
-      // Convert to 16-bit PCM WAV
+      // Convert to WAV
       const wavBuffer = new ArrayBuffer(44 + downsampled.length * 2);
       const view = new DataView(wavBuffer);
-      
-      const writeString = (offset, str) => { for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i)); };
-      writeString(0, 'RIFF');
-      view.setUint32(4, 36 + downsampled.length * 2, true);
-      writeString(8, 'WAVE');
-      writeString(12, 'fmt ');
-      view.setUint32(16, 16, true);
-      view.setUint16(20, 1, true);
-      view.setUint16(22, 1, true);
-      view.setUint32(24, targetRate, true);
-      view.setUint32(28, targetRate * 2, true);
-      view.setUint16(32, 2, true);
-      view.setUint16(34, 16, true);
-      writeString(36, 'data');
-      view.setUint32(40, downsampled.length * 2, true);
-      
+      const ws = (offset, str) => { for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i)); };
+      ws(0, 'RIFF'); view.setUint32(4, 36 + downsampled.length * 2, true);
+      ws(8, 'WAVE'); ws(12, 'fmt '); view.setUint32(16, 16, true);
+      view.setUint16(20, 1, true); view.setUint16(22, 1, true);
+      view.setUint32(24, targetRate, true); view.setUint32(28, targetRate * 2, true);
+      view.setUint16(32, 2, true); view.setUint16(34, 16, true);
+      ws(36, 'data'); view.setUint32(40, downsampled.length * 2, true);
       for (let i = 0; i < downsampled.length; i++) {
         view.setInt16(44 + i * 2, Math.max(-1, Math.min(1, downsampled[i])) * 0x7FFF, true);
       }
@@ -97,60 +129,74 @@ async function extractAudio(file) {
       const bytes = new Uint8Array(wavBuffer);
       let binary = '';
       for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-      resolve(btoa(binary));
+      resolve({ hasAudio: true, audioBase64: btoa(binary) });
     } catch (e) {
       console.error('Audio extraction error:', e);
-      resolve(null);
+      resolve({ hasAudio: false, audioBase64: null });
     }
   });
 }
 
-// Detect cuts by analyzing frame brightness changes
-async function detectCuts(file) {
+// Improved cut detection using multiple signals
+async function detectCuts(file, duration) {
   return new Promise((resolve) => {
     const video = document.createElement('video');
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
     const url = URL.createObjectURL(file);
-    
+
     video.src = url;
     video.muted = true;
 
     video.addEventListener('loadedmetadata', () => {
-      canvas.width = 64;
-      canvas.height = 64;
-      const duration = video.duration;
-      const fps = 5; // Sample at 5fps
-      const totalSamples = Math.min(Math.floor(duration * fps), 150);
-      const timestamps = Array.from({ length: totalSamples }, (_, i) => (i / fps));
-      
+      canvas.width = 128;
+      canvas.height = 128;
+      const totalDuration = video.duration;
+      const sampleInterval = 0.1; // Sample every 100ms for precision
+      const totalSamples = Math.min(Math.floor(totalDuration / sampleInterval), 300);
+      const timestamps = Array.from({ length: totalSamples }, (_, i) => i * sampleInterval);
+
       let index = 0;
-      let lastBrightness = null;
+      let lastHistogram = null;
       let cutCount = 0;
-      const threshold = 30;
+      const cutThreshold = 25; // Sensitivity — lower = more sensitive
+
+      const getHistogram = (imageData) => {
+        const hist = new Array(16).fill(0);
+        for (let i = 0; i < imageData.data.length; i += 4) {
+          const brightness = Math.round((imageData.data[i] + imageData.data[i+1] + imageData.data[i+2]) / 3 / 16);
+          hist[Math.min(brightness, 15)]++;
+        }
+        return hist;
+      };
+
+      const histogramDiff = (h1, h2) => {
+        let diff = 0;
+        for (let i = 0; i < h1.length; i++) diff += Math.abs(h1[i] - h2[i]);
+        return diff / (128 * 128);
+      };
 
       const processNext = () => {
         if (index >= timestamps.length) {
           URL.revokeObjectURL(url);
-          resolve({ cutCount, duration: Math.round(duration) });
+          resolve(cutCount);
           return;
         }
         video.currentTime = timestamps[index];
       };
 
       video.addEventListener('seeked', () => {
-        ctx.drawImage(video, 0, 0, 64, 64);
-        const imageData = ctx.getImageData(0, 0, 64, 64).data;
-        let brightness = 0;
-        for (let i = 0; i < imageData.length; i += 4) {
-          brightness += (imageData[i] + imageData[i+1] + imageData[i+2]) / 3;
-        }
-        brightness /= (64 * 64);
+        try {
+          ctx.drawImage(video, 0, 0, 128, 128);
+          const imageData = ctx.getImageData(0, 0, 128, 128);
+          const histogram = getHistogram(imageData);
 
-        if (lastBrightness !== null && Math.abs(brightness - lastBrightness) > threshold) {
-          cutCount++;
-        }
-        lastBrightness = brightness;
+          if (lastHistogram !== null) {
+            const diff = histogramDiff(lastHistogram, histogram) * 1000;
+            if (diff > cutThreshold) cutCount++;
+          }
+          lastHistogram = histogram;
+        } catch (e) {}
         index++;
         processNext();
       });
@@ -158,8 +204,8 @@ async function detectCuts(file) {
       processNext();
     });
 
-    video.addEventListener('error', () => { URL.revokeObjectURL(url); resolve({ cutCount: 0, duration: 0 }); });
-    setTimeout(() => resolve({ cutCount: 0, duration: 0 }), 20000);
+    video.addEventListener('error', () => { URL.revokeObjectURL(url); resolve(0); });
+    setTimeout(() => { URL.revokeObjectURL(url); resolve(0); }, 25000);
   });
 }
 
@@ -167,6 +213,7 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState('analyze');
   const [videoFile, setVideoFile] = useState(null);
   const [videoUrl, setVideoUrl] = useState(null);
+  const [videoMeta, setVideoMeta] = useState(null);
   const [platform, setPlatform] = useState('TikTok');
   const [loading, setLoading] = useState(false);
   const [loadingMsg, setLoadingMsg] = useState('');
@@ -183,24 +230,29 @@ export default function Home() {
 
   const [flopFile, setFlopFile] = useState(null);
   const [flopUrl, setFlopUrl] = useState(null);
+  const [flopMeta, setFlopMeta] = useState(null);
   const [flopContext, setFlopContext] = useState('');
   const [flopResults, setFlopResults] = useState(null);
   const [flopLoading, setFlopLoading] = useState(false);
   const flopInputRef = useRef();
 
-  const handleFile = (file) => {
+  const handleFile = async (file) => {
     if (!file || !file.type.startsWith('video/')) return;
     setVideoFile(file);
     setVideoUrl(URL.createObjectURL(file));
     setResults(null);
     setError(false);
+    const meta = await getVideoMetadata(file);
+    setVideoMeta(meta);
   };
 
-  const handleFlopFile = (file) => {
+  const handleFlopFile = async (file) => {
     if (!file || !file.type.startsWith('video/')) return;
     setFlopFile(file);
     setFlopUrl(URL.createObjectURL(file));
     setFlopResults(null);
+    const meta = await getVideoMetadata(file);
+    setFlopMeta(meta);
   };
 
   const steps = [
@@ -217,15 +269,15 @@ export default function Home() {
     try {
       setLoadingStep(1);
       setLoadingMsg(steps[0]);
-      const frames = await extractFrames(videoFile, 6);
+      const frames = await extractFrames(videoFile, 8);
 
       setLoadingStep(2);
       setLoadingMsg(steps[1]);
-      const audioData = await extractAudio(videoFile);
+      const { hasAudio, audioBase64 } = await extractAudio(videoFile);
 
       setLoadingStep(3);
       setLoadingMsg(steps[2]);
-      const { cutCount, duration } = await detectCuts(videoFile);
+      const cutCount = await detectCuts(videoFile, videoMeta?.duration);
 
       setLoadingStep(4);
       setLoadingMsg(steps[3]);
@@ -239,9 +291,13 @@ export default function Home() {
           platform,
           filesize: videoFile?.size || 0,
           frames,
-          audioData,
-          videoDuration: duration,
-          cutCount
+          audioData: audioBase64,
+          hasAudio,
+          videoDuration: videoMeta?.duration || 0,
+          cutCount,
+          videoWidth: videoMeta?.width || 0,
+          videoHeight: videoMeta?.height || 0,
+          isVertical: videoMeta?.isVertical ?? true
         })
       });
 
@@ -278,9 +334,9 @@ export default function Home() {
     setFlopLoading(true);
     setFlopResults(null);
     try {
-      const frames = flopFile ? await extractFrames(flopFile, 6) : [];
-      const audioData = flopFile ? await extractAudio(flopFile) : null;
-      const { cutCount, duration } = flopFile ? await detectCuts(flopFile) : { cutCount: 0, duration: 0 };
+      const frames = flopFile ? await extractFrames(flopFile, 8) : [];
+      const { hasAudio, audioBase64 } = flopFile ? await extractAudio(flopFile) : { hasAudio: false, audioBase64: null };
+      const cutCount = flopFile ? await detectCuts(flopFile, flopMeta?.duration) : 0;
 
       const res = await fetch('/api/analyze', {
         method: 'POST',
@@ -292,9 +348,13 @@ export default function Home() {
           platform,
           flop_context: flopContext,
           frames,
-          audioData,
-          videoDuration: duration,
-          cutCount
+          audioData: audioBase64,
+          hasAudio,
+          videoDuration: flopMeta?.duration || 0,
+          cutCount,
+          videoWidth: flopMeta?.width || 0,
+          videoHeight: flopMeta?.height || 0,
+          isVertical: flopMeta?.isVertical ?? true
         })
       });
       if (!res.ok) throw new Error('Server error');
@@ -342,7 +402,7 @@ export default function Home() {
             <section className="hero">
               <div className="hero-eyebrow">AI-Powered Content Psychology</div>
               <h1>Know exactly why they <em>stop</em> scrolling.</h1>
-              <p>We extract real frames, analyze your audio, detect your cuts, and give brutally specific feedback on everything. No generic BS. Only the truth.</p>
+              <p>We extract real frames, analyze your audio, detect your pacing, and give brutally specific feedback based on what we actually observe. No generic BS.</p>
             </section>
           )}
           <section className="upload-section">
@@ -358,9 +418,9 @@ export default function Home() {
                 <p>We analyze visuals, audio, and pacing. For real.</p>
                 <div className="file-types">{['MP4', 'MOV', 'AVI', 'WEBM'].map(t => <span key={t} className="file-tag">{t}</span>)}</div>
                 <div className="analysis-tags">
-                  <span className="atag">👁️ Visual</span>
-                  <span className="atag">🎵 Audio</span>
-                  <span className="atag">✂️ Pacing</span>
+                  <span className="atag">👁️ Visual Frames</span>
+                  <span className="atag">🎵 Audio Analysis</span>
+                  <span className="atag">✂️ Cut Detection</span>
                 </div>
               </div>
             )}
@@ -372,7 +432,10 @@ export default function Home() {
                   <div className="video-info">
                     <div>
                       <div className="video-filename">{videoFile.name}</div>
-                      <div className="video-size">{(videoFile.size / 1024 / 1024).toFixed(1)} MB</div>
+                      <div className="video-size">
+                        {(videoFile.size / 1024 / 1024).toFixed(1)} MB
+                        {videoMeta && ` · ${videoMeta.width}×${videoMeta.height} · ${videoMeta.duration}s`}
+                      </div>
                     </div>
                     <button className="replace-btn" onClick={() => replaceInputRef.current.click()}>↩ Replace</button>
                     <input ref={replaceInputRef} type="file" accept="video/*" style={{ display: 'none' }} onChange={(e) => handleFile(e.target.files[0])} />
@@ -446,8 +509,8 @@ export default function Home() {
                 <button className="rehook-prompt-btn" onClick={() => setActiveTab('rehook')}>Re-Hook Me →</button>
               </div>
               <div className="result-actions">
-                <button className="replace-result-btn" onClick={() => { setResults(null); setVideoFile(null); setVideoUrl(null); setError(false); }}>↩ Try another video</button>
-                <button className="retry-btn" onClick={() => { setResults(null); setVideoFile(null); setVideoUrl(null); setError(false); }}>+ New Analysis</button>
+                <button className="replace-result-btn" onClick={() => { setResults(null); setVideoFile(null); setVideoUrl(null); setVideoMeta(null); setError(false); }}>↩ Try another video</button>
+                <button className="retry-btn" onClick={() => { setResults(null); setVideoFile(null); setVideoUrl(null); setVideoMeta(null); setError(false); }}>+ New Analysis</button>
               </div>
             </section>
           )}
@@ -471,7 +534,7 @@ export default function Home() {
           </div>
           <textarea className="script-input" placeholder="Paste your hook or opening line here..." value={hookScript} onChange={(e) => setHookScript(e.target.value)} rows={4} />
           <button className="analyze-btn" onClick={reHook} disabled={hookLoading || !hookScript.trim()}>{hookLoading ? 'Rewriting...' : 'Re-Hook Me →'}</button>
-          {hookLoading && <div className="loading-state"><div className="loading-spinner" /><h3>Rewriting 5 ways...</h3></div>}
+          {hookLoading && <div className="loading-state"><div className="loading-spinner" /><h3>Rewriting 5 ways...</h3><p>Using psychological frameworks proven to stop scrolls</p></div>}
           {hookResults && (
             <div className="hook-results">
               <div className="hook-original">
@@ -518,9 +581,12 @@ export default function Home() {
               <div className="video-info">
                 <div>
                   <div className="video-filename">{flopFile.name}</div>
-                  <div className="video-size">{(flopFile.size / 1024 / 1024).toFixed(1)} MB — Ready for its autopsy</div>
+                  <div className="video-size">
+                    {(flopFile.size / 1024 / 1024).toFixed(1)} MB — Ready for its autopsy
+                    {flopMeta && ` · ${flopMeta.width}×${flopMeta.height}`}
+                  </div>
                 </div>
-                <button className="replace-btn" onClick={() => { setFlopFile(null); setFlopUrl(null); setFlopResults(null); }}>↩ Replace</button>
+                <button className="replace-btn" onClick={() => { setFlopFile(null); setFlopUrl(null); setFlopResults(null); setFlopMeta(null); }}>↩ Replace</button>
               </div>
             </div>
           )}
@@ -553,7 +619,7 @@ export default function Home() {
               ))}
               <div className="resurrection-card"><div className="resurrection-label">🔄 THE RESURRECTION</div><div className="resurrection-text">{flopResults.resurrection}</div></div>
               <div className="closer-card">{flopResults.closer}</div>
-              <button className="retry-btn" style={{ width: '100%', marginTop: 24 }} onClick={() => { setFlopResults(null); setFlopFile(null); setFlopUrl(null); setFlopContext(''); }}>+ Autopsy Another Video</button>
+              <button className="retry-btn" style={{ width: '100%', marginTop: 24 }} onClick={() => { setFlopResults(null); setFlopFile(null); setFlopUrl(null); setFlopContext(''); setFlopMeta(null); }}>+ Autopsy Another Video</button>
             </div>
           )}
         </section>
@@ -564,11 +630,11 @@ export default function Home() {
           <h3>What we actually analyze</h3>
           <div className="principles-grid">
             {[
-              { icon: '👁️', name: 'Real Visual Analysis', desc: 'We extract actual frames and Claude sees your exact colors, lighting, background, and contrast.' },
-              { icon: '🎵', name: 'Real Audio Analysis', desc: 'AssemblyAI transcribes your speech, detects filler words, and measures your pace in WPM.' },
-              { icon: '✂️', name: 'Real Cut Detection', desc: 'We detect actual cuts in your video and measure your pacing rhythm against platform standards.' },
+              { icon: '👁️', name: 'Real Visual Analysis', desc: 'We extract 8 actual frames and Claude sees your exact colors, lighting, background, and contrast.' },
+              { icon: '🎵', name: 'Real Audio Analysis', desc: 'AssemblyAI processes your audio, distinguishes speech from music, and measures pace in WPM.' },
+              { icon: '✂️', name: 'Real Cut Detection', desc: 'Histogram-based algorithm samples your video 10 times per second to detect actual cuts.' },
+              { icon: '📐', name: 'Exact Dimensions', desc: 'We read your actual video width and height so we never wrongly suggest shooting vertical.' },
               { icon: '🧠', name: 'Hook Psychology', desc: 'The first 1.5 seconds determine 80% of your completion rate. We analyze it specifically.' },
-              { icon: '📐', name: 'Platform Optimization', desc: 'Feedback is specific to TikTok, Reels, or Shorts — different algorithms, different rules.' },
               { icon: '🎯', name: 'Ranked by Impact', desc: 'Every finding ranked Critical to Polish so you know exactly what to fix first.' },
             ].map((p, i) => (
               <div key={i} className="principle-item">
@@ -611,10 +677,10 @@ export default function Home() {
         .upload-zone p { color: #888; font-size: 14px; }
         .file-types { margin-top: 16px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
         .file-tag { background: #1E1E1E; border: 1px solid #2A2A2A; padding: 4px 10px; border-radius: 6px; font-size: 12px; color: #888; }
-        .analysis-tags { margin-top: 12px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+        .analysis-tags { margin-top: 14px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
         .atag { background: rgba(255,59,0,0.1); border: 1px solid rgba(255,59,0,0.3); color: #FF3B00; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
         .video-preview { margin-top: 24px; border-radius: 12px; overflow: hidden; background: #141414; border: 1px solid #2A2A2A; }
-        .video-preview video { width: 100%; max-height: 340px; object-fit: contain; display: block; }
+        .video-preview video { width: 100%; max-height: 380px; object-fit: contain; display: block; background: #000; }
         .video-info { padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
         .video-filename { font-size: 14px; font-weight: 500; word-break: break-all; }
         .video-size { font-size: 12px; color: #888; margin-top: 2px; }

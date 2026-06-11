@@ -11,17 +11,15 @@ export default function Home() {
   const [error, setError] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [loadingStep, setLoadingStep] = useState(0);
-  const [loadingMsg, setLoadingMsg] = useState('');
   const fileInputRef = useRef();
   const replaceInputRef = useRef();
 
-  // Re-Hook state
   const [hookScript, setHookScript] = useState('');
   const [hookResults, setHookResults] = useState(null);
   const [hookLoading, setHookLoading] = useState(false);
 
-  // Flop state
   const [flopFile, setFlopFile] = useState(null);
+  const [flopUrl, setFlopUrl] = useState(null);
   const [flopContext, setFlopContext] = useState('');
   const [flopResults, setFlopResults] = useState(null);
   const [flopLoading, setFlopLoading] = useState(false);
@@ -35,19 +33,27 @@ export default function Home() {
     setError(false);
   };
 
+  const handleFlopFile = (file) => {
+    if (!file || !file.type.startsWith('video/')) return;
+    setFlopFile(file);
+    setFlopUrl(URL.createObjectURL(file));
+    setFlopResults(null);
+  };
+
+  const loadingMessages = [
+    'Judging your life choices...',
+    'Finding everything wrong...',
+    'Preparing the roast...',
+    'Writing your intervention...'
+  ];
+
   const analyzeVideo = async () => {
     setLoading(true);
     setError(false);
-    const msgs = [
-      'Judging your life choices...',
-      'Finding everything wrong...',
-      'Preparing the roast...',
-      'Writing your intervention...'
-    ];
-    for (let i = 0; i < 4; i++) {
+    setLoadingStep(1);
+    for (let i = 1; i <= 4; i++) {
       await new Promise(r => setTimeout(r, 900));
-      setLoadingStep(i + 1);
-      setLoadingMsg(msgs[i]);
+      setLoadingStep(i);
     }
     try {
       const res = await fetch('/api/analyze', {
@@ -64,6 +70,7 @@ export default function Home() {
       const data = await res.json();
       setResults(data);
     } catch (err) {
+      console.error(err);
       setError(true);
     } finally {
       setLoading(false);
@@ -117,13 +124,20 @@ export default function Home() {
   };
 
   const importanceColor = (imp) => {
-    if (imp?.includes('Critical')) return '#FF3B00';
-    if (imp?.includes('High')) return '#FF8C00';
-    if (imp?.includes('Medium')) return '#FFD600';
+    if (!imp) return '#888';
+    const i = imp.toLowerCase();
+    if (i.includes('critical')) return '#FF3B00';
+    if (i.includes('high')) return '#FF8C00';
+    if (i.includes('medium')) return '#FFD600';
     return '#00E87A';
   };
 
-  const scoreColor = results ? (results.score >= 75 ? '#00E87A' : results.score >= 63 ? '#FFD600' : results.score >= 50 ? '#FF8C00' : '#FF3B00') : '#fff';
+  const scoreColor = results
+    ? results.score >= 75 ? '#00E87A'
+    : results.score >= 63 ? '#FFD600'
+    : results.score >= 50 ? '#FF8C00'
+    : '#FF3B00'
+    : '#fff';
 
   const copyToClipboard = (text) => {
     navigator.clipboard.writeText(text);
@@ -142,7 +156,6 @@ export default function Home() {
         <div className="nav-tag">Beta</div>
       </nav>
 
-      {/* TABS */}
       <div className="tabs-wrapper">
         <div className="tabs">
           <button className={`tab ${activeTab === 'analyze' ? 'active' : ''}`} onClick={() => setActiveTab('analyze')}>🎬 Analyze</button>
@@ -151,7 +164,7 @@ export default function Home() {
         </div>
       </div>
 
-      {/* =================== ANALYZE TAB =================== */}
+      {/* ANALYZE TAB */}
       {activeTab === 'analyze' && (
         <>
           {!results && (
@@ -213,10 +226,10 @@ export default function Home() {
             {loading && (
               <div className="loading-state">
                 <div className="loading-spinner" />
-                <h3>{loadingMsg || 'Analyzing...'}</h3>
+                <h3>{loadingMessages[Math.max(0, loadingStep - 1)]}</h3>
                 <p>Finding everything you did wrong</p>
                 <div className="loading-steps">
-                  {['Judging your life choices...', 'Finding everything wrong...', 'Preparing the roast...', 'Writing your intervention...'].map((s, i) => (
+                  {loadingMessages.map((s, i) => (
                     <div key={i} className={`loading-step ${loadingStep === i + 1 ? 'active' : loadingStep > i + 1 ? 'done' : ''}`}>
                       <div className="step-dot" />{s}
                     </div>
@@ -247,7 +260,9 @@ export default function Home() {
                         <span style={{ fontSize: 20 }}>{f.icon || '⚠️'}</span>
                       </div>
                       <div className="card-title-group">
-                        <div className="card-category" style={{ color: importanceColor(f.importance) }}>{f.importance || f.category}</div>
+                        <div className="card-category" style={{ color: importanceColor(f.importance) }}>
+                          #{f.rank} — {f.importance}
+                        </div>
                         <div className="card-title">{f.title}</div>
                       </div>
                     </div>
@@ -259,29 +274,27 @@ export default function Home() {
                 ))}
               </div>
 
-              {/* Re-Hook Me after analysis */}
               <div className="rehook-prompt">
                 <div className="rehook-prompt-icon">🎣</div>
                 <div>
                   <div className="rehook-prompt-title">Want to fix your hook?</div>
                   <div className="rehook-prompt-sub">Paste your script and we'll rewrite it 5 ways</div>
                 </div>
-                <button className="rehook-prompt-btn" onClick={() => { setActiveTab('rehook'); }}>Re-Hook Me →</button>
+                <button className="rehook-prompt-btn" onClick={() => setActiveTab('rehook')}>Re-Hook Me →</button>
               </div>
 
               <div className="result-actions">
-                <button className="replace-result-btn" onClick={() => { replaceInputRef.current?.click(); }}>
-                  <input ref={replaceInputRef} type="file" accept="video/*" style={{ display: 'none' }} onChange={(e) => handleFile(e.target.files[0])} />
+                <button className="replace-result-btn" onClick={() => { setResults(null); setVideoFile(null); setVideoUrl(null); setError(false); }}>
                   ↩ Try another video
                 </button>
-                <button className="retry-btn" onClick={() => { setResults(null); setVideoFile(null); setVideoUrl(null); }}>+ New Analysis</button>
+                <button className="retry-btn" onClick={() => { setResults(null); setVideoFile(null); setVideoUrl(null); setError(false); }}>+ New Analysis</button>
               </div>
             </section>
           )}
         </>
       )}
 
-      {/* =================== RE-HOOK TAB =================== */}
+      {/* RE-HOOK TAB */}
       {activeTab === 'rehook' && (
         <section className="tool-section">
           <div className="tool-hero">
@@ -301,7 +314,7 @@ export default function Home() {
 
           <textarea
             className="script-input"
-            placeholder="Paste your hook or opening line here... e.g. 'Today I'm going to show you how to grow on TikTok'"
+            placeholder="Paste your hook or opening line here..."
             value={hookScript}
             onChange={(e) => setHookScript(e.target.value)}
             rows={4}
@@ -331,7 +344,7 @@ export default function Home() {
                     <div className="hook-card-header">
                       <span className="hook-emoji">{h.emoji}</span>
                       <span className="hook-style">{h.style}</span>
-                      <span className="hook-duration">{h.spokenDuration}s</span>
+                      <span className="hook-duration">{h.spokenDuration}</span>
                     </div>
                     <div className="hook-text">"{h.hook}"</div>
                     <div className="hook-why">{h.why}</div>
@@ -339,12 +352,15 @@ export default function Home() {
                   </div>
                 ))}
               </div>
+              <button className="retry-btn" style={{ width: '100%', marginTop: 24 }} onClick={() => { setHookResults(null); setHookScript(''); }}>
+                + Rewrite Another Hook
+              </button>
             </div>
           )}
         </section>
       )}
 
-      {/* =================== FLOP TAB =================== */}
+      {/* FLOP TAB */}
       {activeTab === 'flop' && (
         <section className="tool-section">
           <div className="tool-hero">
@@ -353,27 +369,29 @@ export default function Home() {
             <p>Upload a video that underperformed. We will tell you exactly why with zero mercy, maximum data, and completely unhinged honesty. Bring tissues.</p>
           </div>
 
-          <div
-            className={`upload-zone ${flopFile ? 'has-file' : ''}`}
-            onClick={() => flopInputRef.current.click()}
-          >
-            <input ref={flopInputRef} type="file" accept="video/*" style={{ display: 'none' }} onChange={(e) => setFlopFile(e.target.files[0])} />
-            {flopFile ? (
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: 32, marginBottom: 8 }}>💀</div>
-                <div className="video-filename">{flopFile.name}</div>
-                <div className="video-size">{(flopFile.size / 1024 / 1024).toFixed(1)} MB — Ready for its autopsy</div>
+          {!flopFile ? (
+            <div className="upload-zone" onClick={() => flopInputRef.current.click()}>
+              <input ref={flopInputRef} type="file" accept="video/*" style={{ display: 'none' }} onChange={(e) => handleFlopFile(e.target.files[0])} />
+              <div className="upload-icon">💀</div>
+              <h3>Upload the victim</h3>
+              <p>The video that flopped. Don't be shy.</p>
+            </div>
+          ) : (
+            <div className="video-preview">
+              <video src={flopUrl} controls />
+              <div className="video-info">
+                <div>
+                  <div className="video-filename">{flopFile.name}</div>
+                  <div className="video-size">{(flopFile.size / 1024 / 1024).toFixed(1)} MB — Ready for its autopsy</div>
+                </div>
+                <button className="replace-btn" onClick={() => { setFlopFile(null); setFlopUrl(null); setFlopResults(null); }}>↩ Replace</button>
               </div>
-            ) : (
-              <>
-                <div className="upload-icon">💀</div>
-                <h3>Upload the victim</h3>
-                <p>The video that flopped. Don't be shy.</p>
-              </>
-            )}
-          </div>
+            </div>
+          )}
 
-          <div className="platform-select" style={{ marginTop: 16 }}>
+          <input ref={flopInputRef} type="file" accept="video/*" style={{ display: 'none' }} onChange={(e) => handleFlopFile(e.target.files[0])} />
+
+          <div className="platform-select" style={{ marginTop: 20 }}>
             <h4>Platform it flopped on</h4>
             <div className="platform-options">
               {['TikTok', 'Instagram Reels', 'YouTube Shorts'].map(p => (
@@ -384,7 +402,7 @@ export default function Home() {
 
           <textarea
             className="script-input"
-            placeholder="Optional: Give us context. How many views did it get? What were you expecting? What did you think went wrong? The more you tell us, the more brutal we can be."
+            placeholder="Optional: Give us context. How many views did it get? What were you expecting? The more you tell us, the more brutal we can be."
             value={flopContext}
             onChange={(e) => setFlopContext(e.target.value)}
             rows={3}
@@ -430,7 +448,7 @@ export default function Home() {
 
               <div className="closer-card">{flopResults.closer}</div>
 
-              <button className="retry-btn" style={{ width: '100%', marginTop: 24 }} onClick={() => { setFlopResults(null); setFlopFile(null); setFlopContext(''); }}>
+              <button className="retry-btn" style={{ width: '100%', marginTop: 24 }} onClick={() => { setFlopResults(null); setFlopFile(null); setFlopUrl(null); setFlopContext(''); }}>
                 + Autopsy Another Video
               </button>
             </div>
@@ -438,7 +456,6 @@ export default function Home() {
         </section>
       )}
 
-      {/* PRINCIPLES */}
       {!results && !hookResults && !flopResults && activeTab === 'analyze' && (
         <section className="principles-strip">
           <h3>Psychology principles we analyze</h3>
@@ -485,7 +502,7 @@ export default function Home() {
         .tool-hero h2 { font-family: 'Syne', sans-serif; font-size: 32px; font-weight: 800; letter-spacing: -1px; margin-bottom: 12px; }
         .tool-hero p { color: #888; font-size: 15px; line-height: 1.7; max-width: 500px; margin: 0 auto; }
         .upload-zone { border: 2px dashed #2A2A2A; border-radius: 16px; padding: 60px 40px; text-align: center; cursor: pointer; transition: all 0.2s; background: #141414; }
-        .upload-zone:hover, .upload-zone.drag-over, .upload-zone.has-file { border-color: #FF3B00; background: rgba(255,59,0,0.05); }
+        .upload-zone:hover, .upload-zone.drag-over { border-color: #FF3B00; background: rgba(255,59,0,0.05); }
         .upload-icon { width: 56px; height: 56px; background: #1E1E1E; border-radius: 14px; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px; font-size: 24px; }
         .upload-zone h3 { font-family: 'Syne', sans-serif; font-size: 20px; font-weight: 700; margin-bottom: 8px; }
         .upload-zone p { color: #888; font-size: 14px; }
@@ -493,10 +510,10 @@ export default function Home() {
         .file-tag { background: #1E1E1E; border: 1px solid #2A2A2A; padding: 4px 10px; border-radius: 6px; font-size: 12px; color: #888; }
         .video-preview { margin-top: 24px; border-radius: 12px; overflow: hidden; background: #141414; border: 1px solid #2A2A2A; }
         .video-preview video { width: 100%; max-height: 340px; object-fit: contain; display: block; }
-        .video-info { padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; }
-        .video-filename { font-size: 14px; font-weight: 500; }
+        .video-info { padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+        .video-filename { font-size: 14px; font-weight: 500; word-break: break-all; }
         .video-size { font-size: 12px; color: #888; margin-top: 2px; }
-        .replace-btn { background: transparent; border: 1px solid #2A2A2A; color: #888; padding: 8px 14px; border-radius: 8px; font-size: 13px; cursor: pointer; transition: all 0.2s; font-family: 'Inter', sans-serif; }
+        .replace-btn { background: transparent; border: 1px solid #2A2A2A; color: #888; padding: 8px 14px; border-radius: 8px; font-size: 13px; cursor: pointer; transition: all 0.2s; font-family: 'Inter', sans-serif; white-space: nowrap; flex-shrink: 0; }
         .replace-btn:hover { border-color: #FF3B00; color: #FF3B00; }
         .platform-select { margin-top: 20px; }
         .platform-select h4 { font-size: 13px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; }
@@ -508,7 +525,7 @@ export default function Home() {
         .analyze-btn:hover { background: #e03400; }
         .analyze-btn:disabled { background: #2A2A2A; color: #555; cursor: not-allowed; }
         .flop-btn { background: #1A0A0A; border: 2px solid #FF3B00; }
-        .flop-btn:hover { background: #FF3B00; }
+        .flop-btn:hover:not(:disabled) { background: #FF3B00; }
         .script-input { width: 100%; background: #141414; border: 1px solid #2A2A2A; border-radius: 12px; padding: 16px; color: #FAFAFA; font-family: 'Inter', sans-serif; font-size: 15px; line-height: 1.6; resize: vertical; transition: border-color 0.2s; }
         .script-input:focus { outline: none; border-color: #FF3B00; }
         .script-input::placeholder { color: #555; }
@@ -530,13 +547,13 @@ export default function Home() {
         .score-label { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 1px; margin-top: 4px; }
         .feedback-grid { display: flex; flex-direction: column; gap: 16px; }
         .feedback-card { background: #141414; border: 1px solid #2A2A2A; border-radius: 14px; padding: 24px; }
-        .card-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+        .card-header { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 16px; }
         .card-icon-wrap { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
         .card-title-group { flex: 1; }
-        .card-category { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 2px; }
-        .card-title { font-family: 'Syne', sans-serif; font-size: 17px; font-weight: 700; }
+        .card-category { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 4px; }
+        .card-title { font-family: 'Syne', sans-serif; font-size: 17px; font-weight: 700; line-height: 1.3; }
         .roast-box { background: #1A0A0A; border-left: 3px solid #FF3B00; padding: 14px 16px; border-radius: 0 8px 8px 0; font-size: 14px; color: #FFB3A0; line-height: 1.7; margin-bottom: 16px; font-style: italic; }
-        .psych-fact { background: #1E1E1E; border-left: 3px solid #555; padding: 12px 16px; border-radius: 0 8px 8px 0; font-size: 13px; color: #888; line-height: 1.6; margin-bottom: 16px; }
+        .psych-fact { background: #1E1E1E; border-left: 3px solid #444; padding: 12px 16px; border-radius: 0 8px 8px 0; font-size: 13px; color: #888; line-height: 1.6; margin-bottom: 16px; }
         .psych-fact strong { color: #FAFAFA; font-weight: 600; }
         .fix-label { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: #00E87A; margin-bottom: 8px; }
         .fix-text { font-size: 14px; color: #FAFAFA; line-height: 1.8; background: rgba(0,232,122,0.06); border: 1px solid rgba(0,232,122,0.2); padding: 14px 16px; border-radius: 8px; }
@@ -550,7 +567,6 @@ export default function Home() {
         .replace-result-btn:hover { border-color: #FF3B00; color: #FF3B00; }
         .retry-btn { flex: 1; padding: 16px; background: #FF3B00; color: white; border: none; border-radius: 12px; font-family: 'Syne', sans-serif; font-size: 15px; font-weight: 700; cursor: pointer; }
         .retry-btn:hover { background: #e03400; }
-        /* RE-HOOK STYLES */
         .hook-results { margin-top: 24px; }
         .hook-original { background: #141414; border: 1px solid #2A2A2A; border-radius: 12px; padding: 20px; margin-bottom: 24px; }
         .hook-original-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: #555; margin-bottom: 8px; }
@@ -565,7 +581,6 @@ export default function Home() {
         .hook-why { font-size: 13px; color: #888; line-height: 1.6; margin-bottom: 16px; }
         .copy-btn { background: transparent; border: 1px solid #2A2A2A; color: #888; padding: 8px 16px; border-radius: 8px; font-size: 13px; cursor: pointer; transition: all 0.2s; font-family: 'Inter', sans-serif; }
         .copy-btn:hover { border-color: #00E87A; color: #00E87A; }
-        /* FLOP STYLES */
         .flop-results { margin-top: 24px; display: flex; flex-direction: column; gap: 16px; }
         .verdict-card { background: #1A0A0A; border: 2px solid #FF3B00; border-radius: 14px; padding: 24px; }
         .verdict-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 2px; color: #FF3B00; margin-bottom: 12px; }

@@ -168,6 +168,7 @@ export default function Home() {
   const [results, setResults] = useState(null);
   const [error, setError] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  const [contentType, setContentType] = useState('');
   const fileInputRef = useRef();
   const replaceInputRef = useRef();
 
@@ -241,6 +242,7 @@ export default function Home() {
           filename: videoFile?.name || 'video.mp4',
           platform,
           filesize: videoFile?.size || 0,
+          contentType,
           frames,
           audioData: audioBase64,
           hasAudio: railwayData?.hasAudio ?? hasAudio,
@@ -401,6 +403,26 @@ export default function Home() {
                   </div>
                 </div>
                 <div className="platform-select">
+                  <h4>Content Type</h4>
+                  <div className="content-type-grid">
+                    {[
+                      { id: 'talking', emoji: '💬', label: 'Talking Head' },
+                      { id: 'lifestyle', emoji: '🎬', label: 'Lifestyle / Vlog' },
+                      { id: 'business', emoji: '🛍️', label: 'Business / Brand' },
+                      { id: 'aesthetic', emoji: '🎵', label: 'Aesthetic / Music' },
+                      { id: 'tutorial', emoji: '💪', label: 'Tutorial / How-To' },
+                      { id: 'entertainment', emoji: '😂', label: 'Comedy / Entertainment' },
+                      { id: 'commentary', emoji: '📰', label: 'Commentary / Opinion' },
+                    ].map(ct => (
+                      <button key={ct.id} className={`content-type-btn ${contentType === ct.id ? 'active' : ''}`} onClick={() => setContentType(ct.id)}>
+                        <span className="ct-emoji">{ct.emoji}</span>
+                        <span className="ct-label">{ct.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="platform-select" style={{ marginTop: 20 }}>
                   <h4>Target Platform</h4>
                   <div className="platform-options">
                     {['TikTok', 'Instagram Reels', 'YouTube Shorts'].map(p => (
@@ -408,7 +430,7 @@ export default function Home() {
                     ))}
                   </div>
                 </div>
-                <button className="analyze-btn" onClick={analyzeVideo}>{error ? 'Something went wrong — try again' : 'Roast My Video →'}</button>
+                <button className="analyze-btn" onClick={analyzeVideo} disabled={!contentType}>{error ? 'Something went wrong — try again' : contentType ? 'Roast My Video →' : 'Select a content type first'}</button>
               </>
             )}
 
@@ -468,8 +490,8 @@ export default function Home() {
                 <button className="rehook-prompt-btn" onClick={() => setActiveTab('rehook')}>Re-Hook Me →</button>
               </div>
               <div className="result-actions">
-                <button className="replace-result-btn" onClick={() => { setResults(null); setVideoFile(null); setVideoUrl(null); setVideoMeta(null); setError(false); }}>↩ Try another video</button>
-                <button className="retry-btn" onClick={() => { setResults(null); setVideoFile(null); setVideoUrl(null); setVideoMeta(null); setError(false); }}>+ New Analysis</button>
+                <button className="replace-result-btn" onClick={() => { setResults(null); setVideoFile(null); setVideoUrl(null); setVideoMeta(null); setError(false); setContentType(''); }}>↩ Try another video</button>
+                <button className="retry-btn" onClick={() => { setResults(null); setVideoFile(null); setVideoUrl(null); setVideoMeta(null); setError(false); setContentType(''); }}>+ New Analysis</button>
               </div>
             </section>
           )}
@@ -637,6 +659,12 @@ export default function Home() {
         .file-types { margin-top: 16px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
         .file-tag { background: #1E1E1E; border: 1px solid #2A2A2A; padding: 4px 10px; border-radius: 6px; font-size: 12px; color: #888; }
         .analysis-tags { margin-top: 14px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+        .content-type-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
+        .content-type-btn { background: #141414; border: 1px solid #2A2A2A; color: #888; padding: 12px 10px; border-radius: 10px; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.15s; font-family: 'Inter', sans-serif; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+        .content-type-btn:hover { border-color: #FF3B00; color: #FAFAFA; }
+        .content-type-btn.active { background: rgba(255,59,0,0.15); border-color: #FF3B00; color: #FF3B00; }
+        .ct-emoji { font-size: 20px; }
+        .ct-label { font-size: 12px; text-align: center; line-height: 1.3; }
         .atag { background: rgba(255,59,0,0.1); border: 1px solid rgba(255,59,0,0.3); color: #FF3B00; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
         .video-preview { margin-top: 24px; border-radius: 12px; overflow: hidden; background: #141414; border: 1px solid #2A2A2A; }
         .video-preview video { width: 100%; max-height: 380px; object-fit: contain; display: block; background: #000; }

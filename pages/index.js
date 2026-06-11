@@ -1,16 +1,179 @@
 import { useState, useRef } from 'react';
 import Head from 'next/head';
 
+// Extract video frames as base64 JPEGs
+async function extractFrames(file, numFrames = 6) {
+  return new Promise((resolve) => {
+    const video = document.createElement('video');
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const url = URL.createObjectURL(file);
+    const frames = [];
+
+    video.src = url;
+    video.muted = true;
+    video.crossOrigin = 'anonymous';
+
+    video.addEventListener('loadedmetadata', () => {
+      canvas.width = 480;
+      canvas.height = Math.round(480 * (video.videoHeight / video.videoWidth)) || 854;
+      const duration = video.duration;
+      const timestamps = Array.from({ length: numFrames }, (_, i) =>
+        Math.min((duration * 0.05) + (duration * 0.9 * i / Math.max(numFrames - 1, 1)), duration - 0.1)
+      );
+      let index = 0;
+
+      const captureNext = () => {
+        if (index >= timestamps.length) {
+          URL.revokeObjectURL(url);
+          resolve(frames);
+          return;
+        }
+        video.currentTime = timestamps[index];
+      };
+
+      video.addEventListener('seeked', () => {
+        try {
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          frames.push(canvas.toDataURL('image/jpeg', 0.6).split(',')[1]);
+        } catch (e) {}
+        index++;
+        captureNext();
+      });
+
+      captureNext();
+    });
+
+    video.addEventListener('error', () => { URL.revokeObjectURL(url); resolve([]); });
+    setTimeout(() => resolve(frames), 15000); // safety timeout
+  });
+}
+
+// Extract audio as base64 using Web Audio API
+async function extractAudio(file) {
+  return new Promise(async (resolve) => {
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+      
+      // Convert to mono WAV
+      const channelData = audioBuffer.getChannelData(0);
+      const sampleRate = audioBuffer.sampleRate;
+      
+      // Downsample to 16kHz for AssemblyAI
+      const targetRate = 16000;
+      const ratio = sampleRate / targetRate;
+      const newLength = Math.floor(channelData.length / ratio);
+      const downsampled = new Float32Array(newLength);
+      
+      for (let i = 0; i < newLength; i++) {
+        downsampled[i] = channelData[Math.floor(i * ratio)];
+      }
+
+      // Convert to 16-bit PCM WAV
+      const wavBuffer = new ArrayBuffer(44 + downsampled.length * 2);
+      const view = new DataView(wavBuffer);
+      
+      const writeString = (offset, str) => { for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i)); };
+      writeString(0, 'RIFF');
+      view.setUint32(4, 36 + downsampled.length * 2, true);
+      writeString(8, 'WAVE');
+      writeString(12, 'fmt ');
+      view.setUint32(16, 16, true);
+      view.setUint16(20, 1, true);
+      view.setUint16(22, 1, true);
+      view.setUint32(24, targetRate, true);
+      view.setUint32(28, targetRate * 2, true);
+      view.setUint16(32, 2, true);
+      view.setUint16(34, 16, true);
+      writeString(36, 'data');
+      view.setUint32(40, downsampled.length * 2, true);
+      
+      for (let i = 0; i < downsampled.length; i++) {
+        view.setInt16(44 + i * 2, Math.max(-1, Math.min(1, downsampled[i])) * 0x7FFF, true);
+      }
+
+      const bytes = new Uint8Array(wavBuffer);
+      let binary = '';
+      for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+      resolve(btoa(binary));
+    } catch (e) {
+      console.error('Audio extraction error:', e);
+      resolve(null);
+    }
+  });
+}
+
+// Detect cuts by analyzing frame brightness changes
+async function detectCuts(file) {
+  return new Promise((resolve) => {
+    const video = document.createElement('video');
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const url = URL.createObjectURL(file);
+    
+    video.src = url;
+    video.muted = true;
+
+    video.addEventListener('loadedmetadata', () => {
+      canvas.width = 64;
+      canvas.height = 64;
+      const duration = video.duration;
+      const fps = 5; // Sample at 5fps
+      const totalSamples = Math.min(Math.floor(duration * fps), 150);
+      const timestamps = Array.from({ length: totalSamples }, (_, i) => (i / fps));
+      
+      let index = 0;
+      let lastBrightness = null;
+      let cutCount = 0;
+      const threshold = 30;
+
+      const processNext = () => {
+        if (index >= timestamps.length) {
+          URL.revokeObjectURL(url);
+          resolve({ cutCount, duration: Math.round(duration) });
+          return;
+        }
+        video.currentTime = timestamps[index];
+      };
+
+      video.addEventListener('seeked', () => {
+        ctx.drawImage(video, 0, 0, 64, 64);
+        const imageData = ctx.getImageData(0, 0, 64, 64).data;
+        let brightness = 0;
+        for (let i = 0; i < imageData.length; i += 4) {
+          brightness += (imageData[i] + imageData[i+1] + imageData[i+2]) / 3;
+        }
+        brightness /= (64 * 64);
+
+        if (lastBrightness !== null && Math.abs(brightness - lastBrightness) > threshold) {
+          cutCount++;
+        }
+        lastBrightness = brightness;
+        index++;
+        processNext();
+      });
+
+      processNext();
+    });
+
+    video.addEventListener('error', () => { URL.revokeObjectURL(url); resolve({ cutCount: 0, duration: 0 }); });
+    setTimeout(() => resolve({ cutCount: 0, duration: 0 }), 20000);
+  });
+}
+
 export default function Home() {
   const [activeTab, setActiveTab] = useState('analyze');
   const [videoFile, setVideoFile] = useState(null);
   const [videoUrl, setVideoUrl] = useState(null);
   const [platform, setPlatform] = useState('TikTok');
   const [loading, setLoading] = useState(false);
+  const [loadingMsg, setLoadingMsg] = useState('');
+  const [loadingStep, setLoadingStep] = useState(0);
   const [results, setResults] = useState(null);
   const [error, setError] = useState(false);
   const [dragOver, setDragOver] = useState(false);
-  const [loadingStep, setLoadingStep] = useState(0);
   const fileInputRef = useRef();
   const replaceInputRef = useRef();
 
@@ -40,22 +203,33 @@ export default function Home() {
     setFlopResults(null);
   };
 
-  const loadingMessages = [
-    'Judging your life choices...',
-    'Finding everything wrong...',
-    'Preparing the roast...',
-    'Writing your intervention...'
+  const steps = [
+    'Extracting video frames...',
+    'Analyzing audio...',
+    'Detecting cuts & pacing...',
+    'Generating your roast...'
   ];
 
   const analyzeVideo = async () => {
     setLoading(true);
     setError(false);
-    setLoadingStep(1);
-    for (let i = 1; i <= 4; i++) {
-      await new Promise(r => setTimeout(r, 900));
-      setLoadingStep(i);
-    }
+
     try {
+      setLoadingStep(1);
+      setLoadingMsg(steps[0]);
+      const frames = await extractFrames(videoFile, 6);
+
+      setLoadingStep(2);
+      setLoadingMsg(steps[1]);
+      const audioData = await extractAudio(videoFile);
+
+      setLoadingStep(3);
+      setLoadingMsg(steps[2]);
+      const { cutCount, duration } = await detectCuts(videoFile);
+
+      setLoadingStep(4);
+      setLoadingMsg(steps[3]);
+
       const res = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -63,9 +237,14 @@ export default function Home() {
           mode: 'analyze',
           filename: videoFile?.name || 'video.mp4',
           platform,
-          filesize: videoFile?.size || 0
+          filesize: videoFile?.size || 0,
+          frames,
+          audioData,
+          videoDuration: duration,
+          cutCount
         })
       });
+
       if (!res.ok) throw new Error('Server error');
       const data = await res.json();
       setResults(data);
@@ -75,6 +254,7 @@ export default function Home() {
     } finally {
       setLoading(false);
       setLoadingStep(0);
+      setLoadingMsg('');
     }
   };
 
@@ -89,19 +269,19 @@ export default function Home() {
         body: JSON.stringify({ mode: 'rehook', script: hookScript, platform })
       });
       if (!res.ok) throw new Error('Server error');
-      const data = await res.json();
-      setHookResults(data);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setHookLoading(false);
-    }
+      setHookResults(await res.json());
+    } catch (err) { console.error(err); }
+    finally { setHookLoading(false); }
   };
 
   const analyzeFlop = async () => {
     setFlopLoading(true);
     setFlopResults(null);
     try {
+      const frames = flopFile ? await extractFrames(flopFile, 6) : [];
+      const audioData = flopFile ? await extractAudio(flopFile) : null;
+      const { cutCount, duration } = flopFile ? await detectCuts(flopFile) : { cutCount: 0, duration: 0 };
+
       const res = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -110,17 +290,17 @@ export default function Home() {
           filename: flopFile?.name || 'video.mp4',
           filesize: flopFile?.size || 0,
           platform,
-          flop_context: flopContext
+          flop_context: flopContext,
+          frames,
+          audioData,
+          videoDuration: duration,
+          cutCount
         })
       });
       if (!res.ok) throw new Error('Server error');
-      const data = await res.json();
-      setFlopResults(data);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setFlopLoading(false);
-    }
+      setFlopResults(await res.json());
+    } catch (err) { console.error(err); }
+    finally { setFlopLoading(false); }
   };
 
   const importanceColor = (imp) => {
@@ -132,16 +312,8 @@ export default function Home() {
     return '#00E87A';
   };
 
-  const scoreColor = results
-    ? results.score >= 75 ? '#00E87A'
-    : results.score >= 63 ? '#FFD600'
-    : results.score >= 50 ? '#FF8C00'
-    : '#FF3B00'
-    : '#fff';
-
-  const copyToClipboard = (text) => {
-    navigator.clipboard.writeText(text);
-  };
+  const scoreColor = results ? (results.score >= 75 ? '#00E87A' : results.score >= 63 ? '#FFD600' : results.score >= 50 ? '#FF8C00' : '#FF3B00') : '#fff';
+  const copyToClipboard = (text) => navigator.clipboard.writeText(text);
 
   return (
     <>
@@ -164,32 +336,31 @@ export default function Home() {
         </div>
       </div>
 
-      {/* ANALYZE TAB */}
       {activeTab === 'analyze' && (
         <>
           {!results && (
             <section className="hero">
               <div className="hero-eyebrow">AI-Powered Content Psychology</div>
               <h1>Know exactly why they <em>stop</em> scrolling.</h1>
-              <p>Upload your video. Get brutally honest, psychology-backed feedback on everything wrong with it. We will roast you. We will help you. You will go viral.</p>
+              <p>We extract real frames, analyze your audio, detect your cuts, and give brutally specific feedback on everything. No generic BS. Only the truth.</p>
             </section>
           )}
-
           <section className="upload-section">
             {!videoFile && !loading && (
-              <div
-                className={`upload-zone ${dragOver ? 'drag-over' : ''}`}
+              <div className={`upload-zone ${dragOver ? 'drag-over' : ''}`}
                 onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
                 onDragLeave={() => setDragOver(false)}
                 onDrop={(e) => { e.preventDefault(); setDragOver(false); handleFile(e.dataTransfer.files[0]); }}
-                onClick={() => fileInputRef.current.click()}
-              >
+                onClick={() => fileInputRef.current.click()}>
                 <input ref={fileInputRef} type="file" accept="video/*" style={{ display: 'none' }} onChange={(e) => handleFile(e.target.files[0])} />
                 <div className="upload-icon">🎬</div>
                 <h3>Drop your video here</h3>
-                <p>Prepare to be roasted. Lovingly.</p>
-                <div className="file-types">
-                  {['MP4', 'MOV', 'AVI', 'WEBM'].map(t => <span key={t} className="file-tag">{t}</span>)}
+                <p>We analyze visuals, audio, and pacing. For real.</p>
+                <div className="file-types">{['MP4', 'MOV', 'AVI', 'WEBM'].map(t => <span key={t} className="file-tag">{t}</span>)}</div>
+                <div className="analysis-tags">
+                  <span className="atag">👁️ Visual</span>
+                  <span className="atag">🎵 Audio</span>
+                  <span className="atag">✂️ Pacing</span>
                 </div>
               </div>
             )}
@@ -207,7 +378,6 @@ export default function Home() {
                     <input ref={replaceInputRef} type="file" accept="video/*" style={{ display: 'none' }} onChange={(e) => handleFile(e.target.files[0])} />
                   </div>
                 </div>
-
                 <div className="platform-select">
                   <h4>Target Platform</h4>
                   <div className="platform-options">
@@ -216,20 +386,17 @@ export default function Home() {
                     ))}
                   </div>
                 </div>
-
-                <button className="analyze-btn" onClick={analyzeVideo}>
-                  {error ? 'Something went wrong — try again' : 'Roast My Video →'}
-                </button>
+                <button className="analyze-btn" onClick={analyzeVideo}>{error ? 'Something went wrong — try again' : 'Roast My Video →'}</button>
               </>
             )}
 
             {loading && (
               <div className="loading-state">
                 <div className="loading-spinner" />
-                <h3>{loadingMessages[Math.max(0, loadingStep - 1)]}</h3>
-                <p>Finding everything you did wrong</p>
+                <h3>{loadingMsg || 'Analyzing...'}</h3>
+                <p>Full analysis: visuals + audio + pacing</p>
                 <div className="loading-steps">
-                  {loadingMessages.map((s, i) => (
+                  {steps.map((s, i) => (
                     <div key={i} className={`loading-step ${loadingStep === i + 1 ? 'active' : loadingStep > i + 1 ? 'done' : ''}`}>
                       <div className="step-dot" />{s}
                     </div>
@@ -251,7 +418,6 @@ export default function Home() {
                   <div className="score-label">Scroll Score</div>
                 </div>
               </div>
-
               <div className="feedback-grid">
                 {results.findings?.map((f, i) => (
                   <div key={i} className="feedback-card">
@@ -260,9 +426,7 @@ export default function Home() {
                         <span style={{ fontSize: 20 }}>{f.icon || '⚠️'}</span>
                       </div>
                       <div className="card-title-group">
-                        <div className="card-category" style={{ color: importanceColor(f.importance) }}>
-                          #{f.rank} — {f.importance}
-                        </div>
+                        <div className="card-category" style={{ color: importanceColor(f.importance) }}>#{f.rank} — {f.importance}</div>
                         <div className="card-title">{f.title}</div>
                       </div>
                     </div>
@@ -273,7 +437,6 @@ export default function Home() {
                   </div>
                 ))}
               </div>
-
               <div className="rehook-prompt">
                 <div className="rehook-prompt-icon">🎣</div>
                 <div>
@@ -282,11 +445,8 @@ export default function Home() {
                 </div>
                 <button className="rehook-prompt-btn" onClick={() => setActiveTab('rehook')}>Re-Hook Me →</button>
               </div>
-
               <div className="result-actions">
-                <button className="replace-result-btn" onClick={() => { setResults(null); setVideoFile(null); setVideoUrl(null); setError(false); }}>
-                  ↩ Try another video
-                </button>
+                <button className="replace-result-btn" onClick={() => { setResults(null); setVideoFile(null); setVideoUrl(null); setError(false); }}>↩ Try another video</button>
                 <button className="retry-btn" onClick={() => { setResults(null); setVideoFile(null); setVideoUrl(null); setError(false); }}>+ New Analysis</button>
               </div>
             </section>
@@ -294,15 +454,13 @@ export default function Home() {
         </>
       )}
 
-      {/* RE-HOOK TAB */}
       {activeTab === 'rehook' && (
         <section className="tool-section">
           <div className="tool-hero">
             <div className="tool-emoji">🎣</div>
             <h2>Re-Hook Me</h2>
-            <p>Paste your hook or script. We'll rewrite it 5 different ways using proven psychological hook frameworks. Creators screenshot this. It goes viral. You're welcome.</p>
+            <p>Paste your hook. We rewrite it 5 ways using proven psychological frameworks. Creators screenshot this. You're welcome.</p>
           </div>
-
           <div className="platform-select" style={{ marginBottom: 16 }}>
             <h4>Target Platform</h4>
             <div className="platform-options">
@@ -311,27 +469,9 @@ export default function Home() {
               ))}
             </div>
           </div>
-
-          <textarea
-            className="script-input"
-            placeholder="Paste your hook or opening line here..."
-            value={hookScript}
-            onChange={(e) => setHookScript(e.target.value)}
-            rows={4}
-          />
-
-          <button className="analyze-btn" onClick={reHook} disabled={hookLoading || !hookScript.trim()}>
-            {hookLoading ? 'Rewriting...' : 'Re-Hook Me →'}
-          </button>
-
-          {hookLoading && (
-            <div className="loading-state">
-              <div className="loading-spinner" />
-              <h3>Rewriting your hook 5 ways...</h3>
-              <p>Using psychological frameworks proven to stop scrolls</p>
-            </div>
-          )}
-
+          <textarea className="script-input" placeholder="Paste your hook or opening line here..." value={hookScript} onChange={(e) => setHookScript(e.target.value)} rows={4} />
+          <button className="analyze-btn" onClick={reHook} disabled={hookLoading || !hookScript.trim()}>{hookLoading ? 'Rewriting...' : 'Re-Hook Me →'}</button>
+          {hookLoading && <div className="loading-state"><div className="loading-spinner" /><h3>Rewriting 5 ways...</h3></div>}
           {hookResults && (
             <div className="hook-results">
               <div className="hook-original">
@@ -352,23 +492,19 @@ export default function Home() {
                   </div>
                 ))}
               </div>
-              <button className="retry-btn" style={{ width: '100%', marginTop: 24 }} onClick={() => { setHookResults(null); setHookScript(''); }}>
-                + Rewrite Another Hook
-              </button>
+              <button className="retry-btn" style={{ width: '100%', marginTop: 24 }} onClick={() => { setHookResults(null); setHookScript(''); }}>+ Rewrite Another Hook</button>
             </div>
           )}
         </section>
       )}
 
-      {/* FLOP TAB */}
       {activeTab === 'flop' && (
         <section className="tool-section">
           <div className="tool-hero">
             <div className="tool-emoji">💀</div>
             <h2>Why Did This Flop</h2>
-            <p>Upload a video that underperformed. We will tell you exactly why with zero mercy, maximum data, and completely unhinged honesty. Bring tissues.</p>
+            <p>Upload the video that died. We analyze the visuals, audio, and pacing to tell you exactly why. Zero mercy. Bring tissues.</p>
           </div>
-
           {!flopFile ? (
             <div className="upload-zone" onClick={() => flopInputRef.current.click()}>
               <input ref={flopInputRef} type="file" accept="video/*" style={{ display: 'none' }} onChange={(e) => handleFlopFile(e.target.files[0])} />
@@ -388,9 +524,7 @@ export default function Home() {
               </div>
             </div>
           )}
-
           <input ref={flopInputRef} type="file" accept="video/*" style={{ display: 'none' }} onChange={(e) => handleFlopFile(e.target.files[0])} />
-
           <div className="platform-select" style={{ marginTop: 20 }}>
             <h4>Platform it flopped on</h4>
             <div className="platform-options">
@@ -399,35 +533,12 @@ export default function Home() {
               ))}
             </div>
           </div>
-
-          <textarea
-            className="script-input"
-            placeholder="Optional: Give us context. How many views did it get? What were you expecting? The more you tell us, the more brutal we can be."
-            value={flopContext}
-            onChange={(e) => setFlopContext(e.target.value)}
-            rows={3}
-            style={{ marginTop: 16 }}
-          />
-
-          <button className="analyze-btn flop-btn" onClick={analyzeFlop} disabled={flopLoading}>
-            {flopLoading ? 'Performing autopsy...' : 'Perform The Autopsy →'}
-          </button>
-
-          {flopLoading && (
-            <div className="loading-state">
-              <div className="loading-spinner" />
-              <h3>Performing the autopsy...</h3>
-              <p>Finding every single reason this video died</p>
-            </div>
-          )}
-
+          <textarea className="script-input" placeholder="Optional: How many views? What were you expecting? The more context, the more brutal we can be." value={flopContext} onChange={(e) => setFlopContext(e.target.value)} rows={3} style={{ marginTop: 16 }} />
+          <button className="analyze-btn flop-btn" onClick={analyzeFlop} disabled={flopLoading}>{flopLoading ? 'Performing autopsy...' : 'Perform The Autopsy →'}</button>
+          {flopLoading && <div className="loading-state"><div className="loading-spinner" /><h3>Performing the autopsy...</h3><p>Analyzing visuals, audio, and pacing</p></div>}
           {flopResults && (
             <div className="flop-results">
-              <div className="verdict-card">
-                <div className="verdict-label">⚖️ THE VERDICT</div>
-                <div className="verdict-text">{flopResults.verdict}</div>
-              </div>
-
+              <div className="verdict-card"><div className="verdict-label">⚖️ THE VERDICT</div><div className="verdict-text">{flopResults.verdict}</div></div>
               <div className="autopsy-label">🔬 THE AUTOPSY</div>
               {flopResults.autopsy?.map((a, i) => (
                 <div key={i} className="autopsy-card">
@@ -440,17 +551,9 @@ export default function Home() {
                   <div className="psych-fact"><strong>The Data:</strong> {a.data}</div>
                 </div>
               ))}
-
-              <div className="resurrection-card">
-                <div className="resurrection-label">🔄 THE RESURRECTION</div>
-                <div className="resurrection-text">{flopResults.resurrection}</div>
-              </div>
-
+              <div className="resurrection-card"><div className="resurrection-label">🔄 THE RESURRECTION</div><div className="resurrection-text">{flopResults.resurrection}</div></div>
               <div className="closer-card">{flopResults.closer}</div>
-
-              <button className="retry-btn" style={{ width: '100%', marginTop: 24 }} onClick={() => { setFlopResults(null); setFlopFile(null); setFlopUrl(null); setFlopContext(''); }}>
-                + Autopsy Another Video
-              </button>
+              <button className="retry-btn" style={{ width: '100%', marginTop: 24 }} onClick={() => { setFlopResults(null); setFlopFile(null); setFlopUrl(null); setFlopContext(''); }}>+ Autopsy Another Video</button>
             </div>
           )}
         </section>
@@ -458,15 +561,15 @@ export default function Home() {
 
       {!results && !hookResults && !flopResults && activeTab === 'analyze' && (
         <section className="principles-strip">
-          <h3>Psychology principles we analyze</h3>
+          <h3>What we actually analyze</h3>
           <div className="principles-grid">
             {[
-              { icon: '👁️', name: 'Visual Contrast', desc: 'High contrast triggers involuntary attention before conscious thought.' },
-              { icon: '⚡', name: 'Pattern Interrupts', desc: 'Unexpected cuts or movements spike dopamine and stall the scroll.' },
-              { icon: '🎯', name: 'Hook Psychology', desc: 'The first 1.5 seconds determine 80% of completion rate.' },
-              { icon: '🎨', name: 'Color Psychology', desc: 'Warm tones signal urgency; cool tones signal trust and calm.' },
-              { icon: '🔊', name: 'Audio Priming', desc: '60% of TikTok users watch with sound on — audio sets emotional tone.' },
-              { icon: '📐', name: 'Pacing & Rhythm', desc: 'Cut frequency directly correlates with perceived energy and engagement.' },
+              { icon: '👁️', name: 'Real Visual Analysis', desc: 'We extract actual frames and Claude sees your exact colors, lighting, background, and contrast.' },
+              { icon: '🎵', name: 'Real Audio Analysis', desc: 'AssemblyAI transcribes your speech, detects filler words, and measures your pace in WPM.' },
+              { icon: '✂️', name: 'Real Cut Detection', desc: 'We detect actual cuts in your video and measure your pacing rhythm against platform standards.' },
+              { icon: '🧠', name: 'Hook Psychology', desc: 'The first 1.5 seconds determine 80% of your completion rate. We analyze it specifically.' },
+              { icon: '📐', name: 'Platform Optimization', desc: 'Feedback is specific to TikTok, Reels, or Shorts — different algorithms, different rules.' },
+              { icon: '🎯', name: 'Ranked by Impact', desc: 'Every finding ranked Critical to Polish so you know exactly what to fix first.' },
             ].map((p, i) => (
               <div key={i} className="principle-item">
                 <div className="p-icon">{p.icon}</div>
@@ -508,6 +611,8 @@ export default function Home() {
         .upload-zone p { color: #888; font-size: 14px; }
         .file-types { margin-top: 16px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
         .file-tag { background: #1E1E1E; border: 1px solid #2A2A2A; padding: 4px 10px; border-radius: 6px; font-size: 12px; color: #888; }
+        .analysis-tags { margin-top: 12px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+        .atag { background: rgba(255,59,0,0.1); border: 1px solid rgba(255,59,0,0.3); color: #FF3B00; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
         .video-preview { margin-top: 24px; border-radius: 12px; overflow: hidden; background: #141414; border: 1px solid #2A2A2A; }
         .video-preview video { width: 100%; max-height: 340px; object-fit: contain; display: block; }
         .video-info { padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
@@ -563,7 +668,7 @@ export default function Home() {
         .rehook-prompt-sub { font-size: 13px; color: #888; margin-top: 2px; }
         .rehook-prompt-btn { margin-left: auto; background: #FF3B00; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-family: 'Syne', sans-serif; font-size: 14px; font-weight: 700; cursor: pointer; white-space: nowrap; }
         .result-actions { display: flex; gap: 12px; margin-top: 32px; }
-        .replace-result-btn { flex: 1; padding: 16px; background: transparent; color: #888; border: 1px solid #2A2A2A; border-radius: 12px; font-family: 'Inter', sans-serif; font-size: 15px; font-weight: 500; cursor: pointer; transition: all 0.2s; }
+        .replace-result-btn { flex: 1; padding: 16px; background: transparent; color: #888; border: 1px solid #2A2A2A; border-radius: 12px; font-family: 'Inter', sans-serif; font-size: 15px; font-weight: 500; cursor: pointer; }
         .replace-result-btn:hover { border-color: #FF3B00; color: #FF3B00; }
         .retry-btn { flex: 1; padding: 16px; background: #FF3B00; color: white; border: none; border-radius: 12px; font-family: 'Syne', sans-serif; font-size: 15px; font-weight: 700; cursor: pointer; }
         .retry-btn:hover { background: #e03400; }
@@ -577,7 +682,7 @@ export default function Home() {
         .hook-emoji { font-size: 22px; }
         .hook-style { font-family: 'Syne', sans-serif; font-size: 14px; font-weight: 700; color: #FF3B00; flex: 1; }
         .hook-duration { font-size: 12px; color: #555; background: #1E1E1E; padding: 3px 8px; border-radius: 6px; }
-        .hook-text { font-size: 18px; font-weight: 600; line-height: 1.5; margin-bottom: 12px; color: #FAFAFA; }
+        .hook-text { font-size: 18px; font-weight: 600; line-height: 1.5; margin-bottom: 12px; }
         .hook-why { font-size: 13px; color: #888; line-height: 1.6; margin-bottom: 16px; }
         .copy-btn { background: transparent; border: 1px solid #2A2A2A; color: #888; padding: 8px 16px; border-radius: 8px; font-size: 13px; cursor: pointer; transition: all 0.2s; font-family: 'Inter', sans-serif; }
         .copy-btn:hover { border-color: #00E87A; color: #00E87A; }

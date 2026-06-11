@@ -137,76 +137,23 @@ async function extractAudio(file) {
   });
 }
 
-// Improved cut detection using multiple signals
-async function detectCuts(file, duration) {
-  return new Promise((resolve) => {
-    const video = document.createElement('video');
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    const url = URL.createObjectURL(file);
+// Send video to Railway FFmpeg server for real analysis
+async function analyzeWithRailway(file) {
+  try {
+    const formData = new FormData();
+    formData.append('video', file);
 
-    video.src = url;
-    video.muted = true;
-
-    video.addEventListener('loadedmetadata', () => {
-      canvas.width = 128;
-      canvas.height = 128;
-      const totalDuration = video.duration;
-      const sampleInterval = 0.1; // Sample every 100ms for precision
-      const totalSamples = Math.min(Math.floor(totalDuration / sampleInterval), 300);
-      const timestamps = Array.from({ length: totalSamples }, (_, i) => i * sampleInterval);
-
-      let index = 0;
-      let lastHistogram = null;
-      let cutCount = 0;
-      const cutThreshold = 25; // Sensitivity — lower = more sensitive
-
-      const getHistogram = (imageData) => {
-        const hist = new Array(16).fill(0);
-        for (let i = 0; i < imageData.data.length; i += 4) {
-          const brightness = Math.round((imageData.data[i] + imageData.data[i+1] + imageData.data[i+2]) / 3 / 16);
-          hist[Math.min(brightness, 15)]++;
-        }
-        return hist;
-      };
-
-      const histogramDiff = (h1, h2) => {
-        let diff = 0;
-        for (let i = 0; i < h1.length; i++) diff += Math.abs(h1[i] - h2[i]);
-        return diff / (128 * 128);
-      };
-
-      const processNext = () => {
-        if (index >= timestamps.length) {
-          URL.revokeObjectURL(url);
-          resolve(cutCount);
-          return;
-        }
-        video.currentTime = timestamps[index];
-      };
-
-      video.addEventListener('seeked', () => {
-        try {
-          ctx.drawImage(video, 0, 0, 128, 128);
-          const imageData = ctx.getImageData(0, 0, 128, 128);
-          const histogram = getHistogram(imageData);
-
-          if (lastHistogram !== null) {
-            const diff = histogramDiff(lastHistogram, histogram) * 1000;
-            if (diff > cutThreshold) cutCount++;
-          }
-          lastHistogram = histogram;
-        } catch (e) {}
-        index++;
-        processNext();
-      });
-
-      processNext();
+    const res = await fetch('/api/proxy-analyze', {
+      method: 'POST',
+      body: formData
     });
 
-    video.addEventListener('error', () => { URL.revokeObjectURL(url); resolve(0); });
-    setTimeout(() => { URL.revokeObjectURL(url); resolve(0); }, 25000);
-  });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (e) {
+    console.error('Railway analysis error:', e);
+    return null;
+  }
 }
 
 export default function Home() {
@@ -257,8 +204,8 @@ export default function Home() {
 
   const steps = [
     'Extracting video frames...',
-    'Analyzing audio...',
-    'Detecting cuts & pacing...',
+    'Running FFmpeg analysis...',
+    'Analyzing audio with AssemblyAI...',
     'Generating your roast...'
   ];
 
@@ -267,18 +214,22 @@ export default function Home() {
     setError(false);
 
     try {
+      // Step 1: Extract frames for visual analysis
       setLoadingStep(1);
       setLoadingMsg(steps[0]);
       const frames = await extractFrames(videoFile, 8);
 
+      // Step 2: Send to Railway for FFmpeg analysis (cuts, audio, metadata)
       setLoadingStep(2);
       setLoadingMsg(steps[1]);
-      const { hasAudio, audioBase64 } = await extractAudio(videoFile);
+      const railwayData = await analyzeWithRailway(videoFile);
 
+      // Step 3: Extract audio for AssemblyAI transcription
       setLoadingStep(3);
       setLoadingMsg(steps[2]);
-      const cutCount = await detectCuts(videoFile, videoMeta?.duration);
+      const { hasAudio, audioBase64 } = await extractAudio(videoFile);
 
+      // Step 4: Send everything to Claude
       setLoadingStep(4);
       setLoadingMsg(steps[3]);
 
@@ -292,12 +243,16 @@ export default function Home() {
           filesize: videoFile?.size || 0,
           frames,
           audioData: audioBase64,
-          hasAudio,
-          videoDuration: videoMeta?.duration || 0,
-          cutCount,
-          videoWidth: videoMeta?.width || 0,
-          videoHeight: videoMeta?.height || 0,
-          isVertical: videoMeta?.isVertical ?? true
+          hasAudio: railwayData?.hasAudio ?? hasAudio,
+          videoDuration: railwayData?.duration || videoMeta?.duration || 0,
+          cutCount: railwayData?.cutCount ?? 0,
+          cutTimestamps: railwayData?.cutTimestamps || [],
+          avgSecsBetweenCuts: railwayData?.avgSecsBetweenCuts || 0,
+          videoWidth: railwayData?.width || videoMeta?.width || 0,
+          videoHeight: railwayData?.height || videoMeta?.height || 0,
+          isVertical: railwayData?.isVertical ?? videoMeta?.isVertical ?? true,
+          railwaySummary: railwayData?.summary || null,
+          audioAnalysis: railwayData?.audioAnalysis || null
         })
       });
 
@@ -335,8 +290,8 @@ export default function Home() {
     setFlopResults(null);
     try {
       const frames = flopFile ? await extractFrames(flopFile, 8) : [];
+      const railwayData = flopFile ? await analyzeWithRailway(flopFile) : null;
       const { hasAudio, audioBase64 } = flopFile ? await extractAudio(flopFile) : { hasAudio: false, audioBase64: null };
-      const cutCount = flopFile ? await detectCuts(flopFile, flopMeta?.duration) : 0;
 
       const res = await fetch('/api/analyze', {
         method: 'POST',
@@ -349,12 +304,16 @@ export default function Home() {
           flop_context: flopContext,
           frames,
           audioData: audioBase64,
-          hasAudio,
-          videoDuration: flopMeta?.duration || 0,
-          cutCount,
-          videoWidth: flopMeta?.width || 0,
-          videoHeight: flopMeta?.height || 0,
-          isVertical: flopMeta?.isVertical ?? true
+          hasAudio: railwayData?.hasAudio ?? hasAudio,
+          videoDuration: railwayData?.duration || flopMeta?.duration || 0,
+          cutCount: railwayData?.cutCount ?? 0,
+          cutTimestamps: railwayData?.cutTimestamps || [],
+          avgSecsBetweenCuts: railwayData?.avgSecsBetweenCuts || 0,
+          videoWidth: railwayData?.width || flopMeta?.width || 0,
+          videoHeight: railwayData?.height || flopMeta?.height || 0,
+          isVertical: railwayData?.isVertical ?? flopMeta?.isVertical ?? true,
+          railwaySummary: railwayData?.summary || null,
+          audioAnalysis: railwayData?.audioAnalysis || null
         })
       });
       if (!res.ok) throw new Error('Server error');

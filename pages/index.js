@@ -406,11 +406,11 @@ export default function Home() {
                   <h4>Content Type</h4>
                   <div className="content-type-grid">
                     {[
-                      { id: 'talking', emoji: '🗣️', label: 'Talking to Camera', desc: 'You're speaking to the viewer — tutorials, advice, opinions, fitness tips, education, reviews' },
-                      { id: 'footage', emoji: '🎬', label: 'Footage / Vlog', desc: 'Clips of things happening — day in the life, travel, room tours, behind the scenes, hauls' },
-                      { id: 'skit', emoji: '😂', label: 'Skit / Comedy / Trends', desc: 'You're performing — comedy bits, skits, trend participation, reactions, characters' },
-                      { id: 'product', emoji: '🛍️', label: 'Product / Brand', desc: 'Promoting or showcasing something — ads, reviews, unboxings, business content' },
-                      { id: 'aesthetic', emoji: '🎵', label: 'Aesthetic / Vibe', desc: 'Mood-driven content — music videos, artistic edits, fashion, visual storytelling with no talking' },
+                      { id: "talking", emoji: "🗣️", label: "Talking to Camera", desc: "You're speaking to the viewer — tutorials, advice, opinions, fitness tips, education, reviews" },
+                      { id: "footage", emoji: "🎬", label: "Footage / Vlog", desc: "Clips of things happening — day in the life, travel, room tours, behind the scenes, hauls" },
+                      { id: "skit", emoji: "😂", label: "Skit / Comedy / Trends", desc: "You're performing — comedy bits, skits, trend participation, reactions, characters" },
+                      { id: "product", emoji: "🛍️", label: "Product / Brand", desc: "Promoting or showcasing something — ads, reviews, unboxings, business content" },
+                      { id: "aesthetic", emoji: "🎵", label: "Aesthetic / Vibe", desc: "Mood-driven content — music videos, artistic edits, fashion, visual storytelling with no talking" },
                     ].map(ct => (
                       <button key={ct.id} className={`content-type-btn ${contentType === ct.id ? 'active' : ''}`} onClick={() => setContentType(ct.id)}>
                         <div className="ct-top">

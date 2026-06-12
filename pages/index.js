@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import Head from 'next/head';
 
 // Extract video frames as base64 JPEGs

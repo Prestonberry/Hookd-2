@@ -15,8 +15,8 @@ async function extractFrames(file, numFrames = 8) {
     video.playsInline = true;
 
     video.addEventListener('loadedmetadata', () => {
-      canvas.width = 540;
-      canvas.height = Math.round(540 * (video.videoHeight / video.videoWidth)) || 960;
+      canvas.width = 720;
+      canvas.height = Math.round(720 * (video.videoHeight / video.videoWidth)) || 1280;
       const duration = video.duration;
       // Always include frame 0 (very first frame) and spread the rest evenly
       const timestamps = [0.01, ...Array.from({ length: numFrames - 1 }, (_, i) =>
@@ -36,7 +36,7 @@ async function extractFrames(file, numFrames = 8) {
       video.addEventListener('seeked', () => {
         try {
           ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-          frames.push(canvas.toDataURL('image/jpeg', 0.65).split(',')[1]);
+          frames.push(canvas.toDataURL('image/jpeg', 0.85).split(',')[1]); // Higher quality for text readability
         } catch (e) {}
         index++;
         captureNext();

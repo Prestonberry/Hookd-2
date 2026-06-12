@@ -1,4 +1,69 @@
 import { useState, useRef } from 'react';
+
+// Extract video frames
+async function extractFrames(file, numFrames = 5) {
+  return new Promise((resolve) => {
+    const video = document.createElement('video');
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const url = URL.createObjectURL(file);
+    const frames = [];
+    video.src = url;
+    video.muted = true;
+    video.addEventListener('loadedmetadata', () => {
+      canvas.width = 480;
+      canvas.height = Math.round(480 * (video.videoHeight / video.videoWidth)) || 854;
+      const duration = video.duration;
+      const timestamps = [0.1, ...Array.from({ length: numFrames - 1 }, (_, i) =>
+        Math.min(0.5 + (duration * 0.85 * (i + 1) / numFrames), duration - 0.1)
+      )];
+      let index = 0;
+      const captureNext = () => {
+        if (index >= timestamps.length) { URL.revokeObjectURL(url); resolve(frames); return; }
+        video.currentTime = timestamps[index];
+      };
+      video.addEventListener('seeked', () => {
+        try { ctx.drawImage(video, 0, 0, canvas.width, canvas.height); frames.push(canvas.toDataURL('image/jpeg', 0.7).split(',')[1]); } catch (e) {}
+        index++; captureNext();
+      });
+      captureNext();
+    });
+    video.addEventListener('error', () => { URL.revokeObjectURL(url); resolve([]); });
+    setTimeout(() => resolve(frames), 15000);
+  });
+}
+
+// Get video metadata
+async function getVideoMetadata(file) {
+  return new Promise((resolve) => {
+    const video = document.createElement('video');
+    const url = URL.createObjectURL(file);
+    video.src = url;
+    video.muted = true;
+    video.addEventListener('loadedmetadata', () => {
+      resolve({ width: video.videoWidth, height: video.videoHeight, duration: Math.round(video.duration), isVertical: video.videoHeight > video.videoWidth });
+      URL.revokeObjectURL(url);
+    });
+    video.addEventListener('error', () => { URL.revokeObjectURL(url); resolve(null); });
+    setTimeout(() => resolve(null), 5000);
+  });
+}
+
+// Extract audio
+async function extractAudio(file) {
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    let audioBuffer;
+    try { audioBuffer = await audioCtx.decodeAudioData(arrayBuffer.slice(0)); } catch (e) { return { hasAudio: false, audioBase64: null }; }
+    const channelData = audioBuffer.getChannelData(0);
+    let maxAmp = 0;
+    for (let i = 0; i < Math.min(channelData.length, 10000); i++) maxAmp = Math.max(maxAmp, Math.abs(channelData[i]));
+    if (maxAmp < 0.001) return { hasAudio: false, audioBase64: null };
+    return { hasAudio: true, audioBase64: null }; // Just detect presence, not transcribe
+  } catch (e) { return { hasAudio: false, audioBase64: null }; }
+}
+
 import Head from 'next/head';
 
 export default function Home() {
@@ -42,34 +107,54 @@ export default function Home() {
     setFlopResults(null);
   };
 
-  const steps = ['Uploading video...', 'Analyzing with FFmpeg...', 'Processing results...', 'Generating roast...'];
+  const steps = ['Extracting frames...', 'Getting video info...', 'Analyzing audio...', 'Generating your roast...'];
 
   const analyzeVideo = async () => {
     setLoading(true);
     setError(false);
     setLoadingStep(1);
     setLoadingMsg(steps[0]);
-    try {
-      const formData = new FormData();
-      formData.append('video', videoFile);
-      formData.append('platform', platform);
-      formData.append('contentType', contentType);
-      formData.append('mode', 'analyze');
 
+    try {
+      // Extract frames in browser
+      const frames = await extractFrames(videoFile, 5);
+      
       setLoadingStep(2);
       setLoadingMsg(steps[1]);
 
-      const res = await fetch('/api/proxy-analyze', { method: 'POST', body: formData });
+      // Get video metadata
+      const meta = await getVideoMetadata(videoFile);
 
       setLoadingStep(3);
       setLoadingMsg(steps[2]);
 
-      if (!res.ok) throw new Error('Analysis failed');
-      const data = await res.json();
+      // Extract audio
+      const { hasAudio, audioBase64 } = await extractAudio(videoFile);
 
       setLoadingStep(4);
       setLoadingMsg(steps[3]);
-      setResults(data);
+
+      const res = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mode: 'analyze',
+          filename: videoFile?.name || 'video.mp4',
+          platform,
+          contentType,
+          filesize: videoFile?.size || 0,
+          frames,
+          hasAudio,
+          videoDuration: meta?.duration || 0,
+          videoWidth: meta?.width || 0,
+          videoHeight: meta?.height || 0,
+          isVertical: meta?.isVertical ?? true,
+          cutCount: 0
+        })
+      });
+
+      if (!res.ok) throw new Error('Analysis failed');
+      setResults(await res.json());
     } catch (err) {
       console.error(err);
       setError(true);
@@ -85,13 +170,11 @@ export default function Home() {
     setHookLoading(true);
     setHookResults(null);
     try {
-      const formData = new FormData();
-      const dummy = new Blob(['x'], { type: 'video/mp4' });
-      formData.append('video', dummy, 'dummy.mp4');
-      formData.append('mode', 'rehook');
-      formData.append('script', hookScript);
-      formData.append('platform', platform);
-      const res = await fetch('/api/proxy-analyze', { method: 'POST', body: formData });
+      const res = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: 'rehook', script: hookScript, platform })
+      });
       if (!res.ok) throw new Error('Failed');
       setHookResults(await res.json());
     } catch (err) { console.error(err); }
@@ -102,13 +185,28 @@ export default function Home() {
     setFlopLoading(true);
     setFlopResults(null);
     try {
-      const formData = new FormData();
-      if (flopFile) formData.append('video', flopFile);
-      else { const dummy = new Blob(['x'], { type: 'video/mp4' }); formData.append('video', dummy, 'dummy.mp4'); }
-      formData.append('platform', platform);
-      formData.append('mode', 'flop');
-      formData.append('flop_context', flopContext);
-      const res = await fetch('/api/proxy-analyze', { method: 'POST', body: formData });
+      const frames = flopFile ? await extractFrames(flopFile, 5) : [];
+      const meta = flopFile ? await getVideoMetadata(flopFile) : null;
+      const { hasAudio } = flopFile ? await extractAudio(flopFile) : { hasAudio: false };
+
+      const res = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mode: 'flop',
+          filename: flopFile?.name || 'video.mp4',
+          filesize: flopFile?.size || 0,
+          platform,
+          flop_context: flopContext,
+          frames,
+          hasAudio,
+          videoDuration: meta?.duration || 0,
+          videoWidth: meta?.width || 0,
+          videoHeight: meta?.height || 0,
+          isVertical: meta?.isVertical ?? true,
+          cutCount: 0
+        })
+      });
       if (!res.ok) throw new Error('Failed');
       setFlopResults(await res.json());
     } catch (err) { console.error(err); }

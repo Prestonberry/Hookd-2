@@ -1,4 +1,5 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import RoastPlayer from '../components/RoastPlayer';
 
 // Extract video frames
 async function extractFrames(file, numFrames = 5) {
@@ -60,7 +61,7 @@ async function extractAudio(file) {
     let maxAmp = 0;
     for (let i = 0; i < Math.min(channelData.length, 10000); i++) maxAmp = Math.max(maxAmp, Math.abs(channelData[i]));
     if (maxAmp < 0.001) return { hasAudio: false, audioBase64: null };
-    return { hasAudio: true, audioBase64: null }; // Just detect presence, not transcribe
+    return { hasAudio: true, audioBase64: null };
   } catch (e) { return { hasAudio: false, audioBase64: null }; }
 }
 
@@ -94,6 +95,10 @@ export default function Home() {
   const [flopLoading, setFlopLoading] = useState(false);
   const flopInputRef = useRef();
 
+  // ElevenLabs voice state
+  const [roastAudio, setRoastAudio] = useState(null);
+  const [audioLoading, setAudioLoading] = useState(false);
+
   const handleFile = (file) => {
     if (!file || !file.type.startsWith('video/')) return;
     setVideoFile(file);
@@ -107,46 +112,62 @@ export default function Home() {
     setFlopFile(file);
     setFlopUrl(URL.createObjectURL(file));
     setFlopResults(null);
+    setRoastAudio(null);
   };
 
   const steps = ['Extracting frames...', 'Getting video info...', 'Analyzing audio...', 'Generating your roast...'];
+
+  // Map UI persona IDs to ElevenLabs route IDs
+  const personaToVoiceId = { boyfriend: 'babe', boss: 'boss', chef: 'chef' };
+  const personaLabels = {
+    boyfriend: 'Babe Just Get A Real Job',
+    boss: 'Per My Last Email',
+    chef: "Hell's Creator",
+  };
+
+  const generateRoastVoice = async (analysisText, personaId) => {
+    setAudioLoading(true);
+    setRoastAudio(null);
+    try {
+      const sentences = analysisText.match(/[^.!?]+[.!?]+/g) || [];
+      const voiceText = sentences.slice(0, 3).join(' ').trim() || analysisText.slice(0, 300);
+      const res = await fetch('/api/elevenlabs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: voiceText, personaId: personaToVoiceId[personaId] || 'chef' }),
+      });
+      if (!res.ok) throw new Error('Voice generation failed');
+      const data = await res.json();
+      setRoastAudio(data.audio);
+    } catch (err) {
+      console.error('Voice gen error:', err);
+      // Fail silently — analysis still shows
+    } finally {
+      setAudioLoading(false);
+    }
+  };
 
   const analyzeVideo = async () => {
     setLoading(true);
     setError(false);
     setLoadingStep(1);
     setLoadingMsg(steps[0]);
-
     try {
-      // Extract frames in browser
       const frames = await extractFrames(videoFile, 5);
-      
-      setLoadingStep(2);
-      setLoadingMsg(steps[1]);
-
-      // Get video metadata
+      setLoadingStep(2); setLoadingMsg(steps[1]);
       const meta = await getVideoMetadata(videoFile);
-
-      setLoadingStep(3);
-      setLoadingMsg(steps[2]);
-
-      // Extract audio
+      setLoadingStep(3); setLoadingMsg(steps[2]);
       const { hasAudio, audioBase64 } = await extractAudio(videoFile);
-
-      setLoadingStep(4);
-      setLoadingMsg(steps[3]);
-
+      setLoadingStep(4); setLoadingMsg(steps[3]);
       const res = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           mode: 'analyze',
           filename: videoFile?.name || 'video.mp4',
-          platform,
-          contentType,
+          platform, contentType,
           filesize: videoFile?.size || 0,
-          frames,
-          hasAudio,
+          frames, hasAudio,
           videoDuration: meta?.duration || 0,
           videoWidth: meta?.width || 0,
           videoHeight: meta?.height || 0,
@@ -154,23 +175,19 @@ export default function Home() {
           cutCount: 0
         })
       });
-
       if (!res.ok) throw new Error('Analysis failed');
       setResults(await res.json());
     } catch (err) {
       console.error(err);
       setError(true);
     } finally {
-      setLoading(false);
-      setLoadingStep(0);
-      setLoadingMsg('');
+      setLoading(false); setLoadingStep(0); setLoadingMsg('');
     }
   };
 
   const reHook = async () => {
     if (!hookScript.trim()) return;
-    setHookLoading(true);
-    setHookResults(null);
+    setHookLoading(true); setHookResults(null);
     try {
       const res = await fetch('/api/analyze', {
         method: 'POST',
@@ -184,13 +201,11 @@ export default function Home() {
   };
 
   const analyzeFlop = async () => {
-    setFlopLoading(true);
-    setFlopResults(null);
+    setFlopLoading(true); setFlopResults(null); setRoastAudio(null);
     try {
       const frames = flopFile ? await extractFrames(flopFile, 5) : [];
       const meta = flopFile ? await getVideoMetadata(flopFile) : null;
       const { hasAudio } = flopFile ? await extractAudio(flopFile) : { hasAudio: false };
-
       const res = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -198,11 +213,8 @@ export default function Home() {
           mode: 'flop',
           filename: flopFile?.name || 'video.mp4',
           filesize: flopFile?.size || 0,
-          platform,
-          flop_context: flopContext,
-          voicePersona,
-          frames,
-          hasAudio,
+          platform, flop_context: flopContext, voicePersona,
+          frames, hasAudio,
           videoDuration: meta?.duration || 0,
           videoWidth: meta?.width || 0,
           videoHeight: meta?.height || 0,
@@ -211,7 +223,11 @@ export default function Home() {
         })
       });
       if (!res.ok) throw new Error('Failed');
-      setFlopResults(await res.json());
+      const data = await res.json();
+      setFlopResults(data);
+      // Fire voice generation after analysis returns
+      const roastText = data.verdict || data.closer || '';
+      if (roastText) generateRoastVoice(roastText, voicePersona);
     } catch (err) { console.error(err); }
     finally { setFlopLoading(false); }
   };
@@ -414,7 +430,7 @@ export default function Home() {
             </div>
           </div>
           <textarea className="script-input" placeholder="Paste your hook or opening line here..." value={hookScript} onChange={(e) => setHookScript(e.target.value)} rows={3} />
-          <textarea className="script-input" placeholder="Optional but recommended: What is this video actually about? Give us context so we preserve your exact message. E.g. 'This is about how founder-led content strategy hurts scaling brands — founders should not be the face of the brand'" value={hookContext} onChange={(e) => setHookContext(e.target.value)} rows={3} style={{ marginTop: 10, borderColor: '#333' }} />
+          <textarea className="script-input" placeholder="Optional but recommended: What is this video actually about? Give us context so we preserve your exact message." value={hookContext} onChange={(e) => setHookContext(e.target.value)} rows={3} style={{ marginTop: 10, borderColor: '#333' }} />
           <button className="analyze-btn" onClick={reHook} disabled={hookLoading || !hookScript.trim()}>{hookLoading ? 'Rewriting...' : 'Re-Hook Me →'}</button>
           {hookLoading && <div className="loading-state"><div className="loading-spinner" /><h3>Rewriting 5 ways...</h3></div>}
           {hookResults && (
@@ -466,7 +482,7 @@ export default function Home() {
                   <div className="video-filename">{flopFile.name}</div>
                   <div className="video-size">{(flopFile.size / 1024 / 1024).toFixed(1)} MB — Ready for autopsy</div>
                 </div>
-                <button className="replace-btn" onClick={() => { setFlopFile(null); setFlopUrl(null); setFlopResults(null); }}>↩ Replace</button>
+                <button className="replace-btn" onClick={() => { setFlopFile(null); setFlopUrl(null); setFlopResults(null); setRoastAudio(null); }}>↩ Replace</button>
               </div>
             </div>
           )}
@@ -497,9 +513,26 @@ export default function Home() {
           <textarea className="script-input" placeholder="Optional: How many views? What were you expecting? The more context, the more brutal we can be." value={flopContext} onChange={(e) => setFlopContext(e.target.value)} rows={3} style={{ marginTop: 16 }} />
           <button className="analyze-btn flop-btn" onClick={analyzeFlop} disabled={flopLoading}>{flopLoading ? 'Performing autopsy...' : 'Perform The Autopsy →'}</button>
           {flopLoading && <div className="loading-state"><div className="loading-spinner" /><h3>Performing the autopsy...</h3><p>Analyzing visuals, audio, and pacing</p></div>}
+
           {flopResults && (
             <div className="flop-results">
               <div className="verdict-card"><div className="verdict-label">⚖️ THE VERDICT</div><div className="verdict-text">{flopResults.verdict}</div></div>
+
+              {/* VOICE PLAYER — appears right after verdict */}
+              {audioLoading && (
+                <div className="voice-loading">
+                  <div className="voice-loading-dot" />
+                  Generating voice roast...
+                </div>
+              )}
+              {roastAudio && !audioLoading && (
+                <RoastPlayer
+                  audioBase64={roastAudio}
+                  personaId={personaToVoiceId[voicePersona]}
+                  personaLabel={personaLabels[voicePersona]}
+                />
+              )}
+
               <div className="autopsy-label">🔬 THE AUTOPSY</div>
               {flopResults.autopsy?.map((a, i) => (
                 <div key={i} className="autopsy-card">
@@ -514,7 +547,7 @@ export default function Home() {
               ))}
               <div className="resurrection-card"><div className="resurrection-label">🔄 THE RESURRECTION</div><div className="resurrection-text">{flopResults.resurrection}</div></div>
               <div className="closer-card">{flopResults.closer}</div>
-              <button className="retry-btn" style={{ width: '100%', marginTop: 24 }} onClick={() => { setFlopResults(null); setFlopFile(null); setFlopUrl(null); setFlopContext(''); }}>+ Autopsy Another Video</button>
+              <button className="retry-btn" style={{ width: '100%', marginTop: 24 }} onClick={() => { setFlopResults(null); setFlopFile(null); setFlopUrl(null); setFlopContext(''); setRoastAudio(null); }}>+ Autopsy Another Video</button>
             </div>
           )}
         </section>
@@ -660,6 +693,9 @@ export default function Home() {
         .verdict-card { background: #1A0A0A; border: 2px solid #FF3B00; border-radius: 14px; padding: 24px; }
         .verdict-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 2px; color: #FF3B00; margin-bottom: 12px; }
         .verdict-text { font-size: 15px; color: #FFB3A0; line-height: 1.8; font-style: italic; }
+        .voice-loading { display: flex; align-items: center; gap: 10px; color: #555; font-size: 13px; font-family: 'Inter', sans-serif; padding: 4px 0; }
+        .voice-loading-dot { width: 8px; height: 8px; border-radius: 50%; background: #FF3B00; animation: pulse 1s ease-in-out infinite; flex-shrink: 0; }
+        @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(0.7); } }
         .autopsy-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 2px; color: #888; margin: 8px 0; }
         .autopsy-card { background: #141414; border: 1px solid #2A2A2A; border-radius: 14px; padding: 20px; }
         .autopsy-header { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }

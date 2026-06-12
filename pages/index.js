@@ -18,9 +18,10 @@ async function extractFrames(file, numFrames = 8) {
       canvas.width = 540;
       canvas.height = Math.round(540 * (video.videoHeight / video.videoWidth)) || 960;
       const duration = video.duration;
-      const timestamps = Array.from({ length: numFrames }, (_, i) =>
-        Math.min(0.05 + (duration * 0.9 * i / Math.max(numFrames - 1, 1)), duration - 0.05)
-      );
+      // Always include frame 0 (very first frame) and spread the rest evenly
+      const timestamps = [0.01, ...Array.from({ length: numFrames - 1 }, (_, i) =>
+        Math.min(0.1 + (duration * 0.9 * (i + 1) / numFrames), duration - 0.05)
+      )];
       let index = 0;
 
       const captureNext = () => {

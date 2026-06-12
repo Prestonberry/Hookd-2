@@ -1,175 +1,18 @@
 import { useState, useRef } from 'react';
 import Head from 'next/head';
 
-// Extract video frames as base64 JPEGs
-async function extractFrames(file, numFrames = 8) {
-  return new Promise((resolve) => {
-    const video = document.createElement('video');
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    const url = URL.createObjectURL(file);
-    const frames = [];
-
-    video.src = url;
-    video.muted = true;
-    video.playsInline = true;
-
-    video.addEventListener('loadedmetadata', () => {
-      canvas.width = 540;
-      canvas.height = Math.round(540 * (video.videoHeight / video.videoWidth)) || 960;
-      const duration = video.duration;
-      // Always include frame 0 (very first frame) and spread the rest evenly
-      const timestamps = [0.01, ...Array.from({ length: numFrames - 1 }, (_, i) =>
-        Math.min(0.1 + (duration * 0.9 * (i + 1) / numFrames), duration - 0.05)
-      )];
-      let index = 0;
-
-      const captureNext = () => {
-        if (index >= timestamps.length) {
-          URL.revokeObjectURL(url);
-          resolve(frames);
-          return;
-        }
-        video.currentTime = timestamps[index];
-      };
-
-      video.addEventListener('seeked', () => {
-        try {
-          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-          frames.push(canvas.toDataURL('image/jpeg', 0.75).split(',')[1]);
-        } catch (e) {}
-        index++;
-        captureNext();
-      });
-
-      captureNext();
-    });
-
-    video.addEventListener('error', () => { URL.revokeObjectURL(url); resolve([]); });
-    setTimeout(() => { URL.revokeObjectURL(url); resolve(frames); }, 20000);
-  });
-}
-
-// Get video metadata (dimensions, duration, has audio)
-async function getVideoMetadata(file) {
-  return new Promise((resolve) => {
-    const video = document.createElement('video');
-    const url = URL.createObjectURL(file);
-    video.src = url;
-    video.muted = true;
-
-    video.addEventListener('loadedmetadata', () => {
-      const metadata = {
-        width: video.videoWidth,
-        height: video.videoHeight,
-        duration: Math.round(video.duration),
-        isVertical: video.videoHeight > video.videoWidth,
-        aspectRatio: `${video.videoWidth}x${video.videoHeight}`
-      };
-      URL.revokeObjectURL(url);
-      resolve(metadata);
-    });
-
-    video.addEventListener('error', () => { URL.revokeObjectURL(url); resolve(null); });
-    setTimeout(() => { URL.revokeObjectURL(url); resolve(null); }, 5000);
-  });
-}
-
-// Extract audio as base64 WAV and detect if audio track exists
-async function extractAudio(file) {
-  return new Promise(async (resolve) => {
-    try {
-      const arrayBuffer = await file.arrayBuffer();
-      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      
-      let audioBuffer;
-      try {
-        audioBuffer = await audioCtx.decodeAudioData(arrayBuffer.slice(0));
-      } catch (e) {
-        // No audio track or can't decode
-        resolve({ hasAudio: false, audioBase64: null });
-        return;
-      }
-
-      const channelData = audioBuffer.getChannelData(0);
-      const sampleRate = audioBuffer.sampleRate;
-
-      // Check if audio is actually silent (all zeros or near-zero)
-      let maxAmplitude = 0;
-      for (let i = 0; i < Math.min(channelData.length, 10000); i++) {
-        maxAmplitude = Math.max(maxAmplitude, Math.abs(channelData[i]));
-      }
-      if (maxAmplitude < 0.001) {
-        resolve({ hasAudio: false, audioBase64: null });
-        return;
-      }
-
-      // Downsample to 16kHz for AssemblyAI
-      const targetRate = 16000;
-      const ratio = sampleRate / targetRate;
-      const newLength = Math.floor(channelData.length / ratio);
-      const downsampled = new Float32Array(newLength);
-      for (let i = 0; i < newLength; i++) {
-        downsampled[i] = channelData[Math.floor(i * ratio)];
-      }
-
-      // Convert to WAV
-      const wavBuffer = new ArrayBuffer(44 + downsampled.length * 2);
-      const view = new DataView(wavBuffer);
-      const ws = (offset, str) => { for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i)); };
-      ws(0, 'RIFF'); view.setUint32(4, 36 + downsampled.length * 2, true);
-      ws(8, 'WAVE'); ws(12, 'fmt '); view.setUint32(16, 16, true);
-      view.setUint16(20, 1, true); view.setUint16(22, 1, true);
-      view.setUint32(24, targetRate, true); view.setUint32(28, targetRate * 2, true);
-      view.setUint16(32, 2, true); view.setUint16(34, 16, true);
-      ws(36, 'data'); view.setUint32(40, downsampled.length * 2, true);
-      for (let i = 0; i < downsampled.length; i++) {
-        view.setInt16(44 + i * 2, Math.max(-1, Math.min(1, downsampled[i])) * 0x7FFF, true);
-      }
-
-      const bytes = new Uint8Array(wavBuffer);
-      let binary = '';
-      for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-      resolve({ hasAudio: true, audioBase64: btoa(binary) });
-    } catch (e) {
-      console.error('Audio extraction error:', e);
-      resolve({ hasAudio: false, audioBase64: null });
-    }
-  });
-}
-
-// Send video to Railway FFmpeg server for real analysis
-async function analyzeWithRailway(file) {
-  try {
-    const formData = new FormData();
-    formData.append('video', file);
-
-    const res = await fetch('/api/proxy-analyze', {
-      method: 'POST',
-      body: formData
-    });
-
-    if (!res.ok) return null;
-    return await res.json();
-  } catch (e) {
-    console.error('Railway analysis error:', e);
-    return null;
-  }
-}
-
 export default function Home() {
   const [activeTab, setActiveTab] = useState('analyze');
   const [videoFile, setVideoFile] = useState(null);
   const [videoUrl, setVideoUrl] = useState(null);
-  const [videoMeta, setVideoMeta] = useState(null);
   const [platform, setPlatform] = useState('TikTok');
+  const [contentType, setContentType] = useState('');
   const [loading, setLoading] = useState(false);
-  const [loadingMsg, setLoadingMsg] = useState('');
   const [loadingStep, setLoadingStep] = useState(0);
+  const [loadingMsg, setLoadingMsg] = useState('');
   const [results, setResults] = useState(null);
   const [error, setError] = useState(false);
   const [dragOver, setDragOver] = useState(false);
-  const [contentType, setContentType] = useState('');
   const fileInputRef = useRef();
   const replaceInputRef = useRef();
 
@@ -179,46 +22,34 @@ export default function Home() {
 
   const [flopFile, setFlopFile] = useState(null);
   const [flopUrl, setFlopUrl] = useState(null);
-  const [flopMeta, setFlopMeta] = useState(null);
   const [flopContext, setFlopContext] = useState('');
   const [flopResults, setFlopResults] = useState(null);
   const [flopLoading, setFlopLoading] = useState(false);
   const flopInputRef = useRef();
 
-  const handleFile = async (file) => {
+  const handleFile = (file) => {
     if (!file || !file.type.startsWith('video/')) return;
     setVideoFile(file);
     setVideoUrl(URL.createObjectURL(file));
     setResults(null);
     setError(false);
-    const meta = await getVideoMetadata(file);
-    setVideoMeta(meta);
   };
 
-  const handleFlopFile = async (file) => {
+  const handleFlopFile = (file) => {
     if (!file || !file.type.startsWith('video/')) return;
     setFlopFile(file);
     setFlopUrl(URL.createObjectURL(file));
     setFlopResults(null);
-    const meta = await getVideoMetadata(file);
-    setFlopMeta(meta);
   };
 
-  const steps = [
-    'Uploading your video...',
-    'Running full video analysis...',
-    'Processing results...',
-    'Generating your roast...'
-  ];
+  const steps = ['Uploading video...', 'Analyzing with FFmpeg...', 'Processing results...', 'Generating roast...'];
 
   const analyzeVideo = async () => {
     setLoading(true);
     setError(false);
-
+    setLoadingStep(1);
+    setLoadingMsg(steps[0]);
     try {
-      setLoadingStep(1);
-      setLoadingMsg(steps[0]);
-
       const formData = new FormData();
       formData.append('video', videoFile);
       formData.append('platform', platform);
@@ -228,10 +59,7 @@ export default function Home() {
       setLoadingStep(2);
       setLoadingMsg(steps[1]);
 
-      const res = await fetch('/api/proxy-analyze', {
-        method: 'POST',
-        body: formData
-      });
+      const res = await fetch('/api/proxy-analyze', { method: 'POST', body: formData });
 
       setLoadingStep(3);
       setLoadingMsg(steps[2]);
@@ -241,7 +69,6 @@ export default function Home() {
 
       setLoadingStep(4);
       setLoadingMsg(steps[3]);
-
       setResults(data);
     } catch (err) {
       console.error(err);
@@ -259,18 +86,13 @@ export default function Home() {
     setHookResults(null);
     try {
       const formData = new FormData();
+      const dummy = new Blob(['x'], { type: 'video/mp4' });
+      formData.append('video', dummy, 'dummy.mp4');
       formData.append('mode', 'rehook');
       formData.append('script', hookScript);
       formData.append('platform', platform);
-      // Create a tiny dummy file since Railway expects a video field
-      const dummyBlob = new Blob(['dummy'], { type: 'video/mp4' });
-      formData.append('video', dummyBlob, 'dummy.mp4');
-
-      const res = await fetch('/api/proxy-analyze', {
-        method: 'POST',
-        body: formData
-      });
-      if (!res.ok) throw new Error('Server error');
+      const res = await fetch('/api/proxy-analyze', { method: 'POST', body: formData });
+      if (!res.ok) throw new Error('Failed');
       setHookResults(await res.json());
     } catch (err) { console.error(err); }
     finally { setHookLoading(false); }
@@ -282,21 +104,23 @@ export default function Home() {
     try {
       const formData = new FormData();
       if (flopFile) formData.append('video', flopFile);
+      else { const dummy = new Blob(['x'], { type: 'video/mp4' }); formData.append('video', dummy, 'dummy.mp4'); }
       formData.append('platform', platform);
       formData.append('mode', 'flop');
       formData.append('flop_context', flopContext);
-
-      const res = await fetch('/api/proxy-analyze', {
-        method: 'POST',
-        body: formData
-      });
-      if (!res.ok) throw new Error('Analysis failed');
+      const res = await fetch('/api/proxy-analyze', { method: 'POST', body: formData });
+      if (!res.ok) throw new Error('Failed');
       setFlopResults(await res.json());
     } catch (err) { console.error(err); }
     finally { setFlopLoading(false); }
   };
 
-  const importanceColor = (imp) => {
+  const resetAnalyze = () => {
+    setResults(null); setVideoFile(null); setVideoUrl(null);
+    setError(false); setContentType('');
+  };
+
+  const ic = (imp) => {
     if (!imp) return '#888';
     const i = imp.toLowerCase();
     if (i.includes('critical')) return '#FF3B00';
@@ -306,7 +130,15 @@ export default function Home() {
   };
 
   const scoreColor = results ? (results.score >= 75 ? '#00E87A' : results.score >= 63 ? '#FFD600' : results.score >= 50 ? '#FF8C00' : '#FF3B00') : '#fff';
-  const copyToClipboard = (text) => navigator.clipboard.writeText(text);
+  const copy = (t) => navigator.clipboard.writeText(t);
+
+  const contentTypes = [
+    { id: 'talking', emoji: '🗣️', label: 'Talking to Camera', desc: "You're speaking to the viewer — tutorials, advice, opinions, fitness tips, education, reviews" },
+    { id: 'footage', emoji: '🎬', label: 'Footage / Vlog', desc: 'Clips of things happening — day in the life, travel, room tours, behind the scenes, hauls' },
+    { id: 'skit', emoji: '😂', label: 'Skit / Comedy / Trends', desc: "You're performing — comedy bits, skits, trend participation, reactions, characters" },
+    { id: 'product', emoji: '🛍️', label: 'Product / Brand', desc: 'Promoting or showcasing something — ads, reviews, unboxings, business content' },
+    { id: 'aesthetic', emoji: '🎵', label: 'Aesthetic / Vibe', desc: 'Mood-driven content — music videos, artistic edits, fashion, visual storytelling with no talking' },
+  ];
 
   return (
     <>
@@ -329,13 +161,14 @@ export default function Home() {
         </div>
       </div>
 
+      {/* ANALYZE */}
       {activeTab === 'analyze' && (
         <>
-          {!results && (
+          {!results && !loading && !videoFile && (
             <section className="hero">
               <div className="hero-eyebrow">AI-Powered Content Psychology</div>
               <h1>Know exactly why they <em>stop</em> scrolling.</h1>
-              <p>We extract real frames, analyze your audio, detect your pacing, and give brutally specific feedback based on what we actually observe. No generic BS.</p>
+              <p>Upload your video. Get brutally honest, psychology-backed feedback on everything. No generic BS. Only the truth.</p>
             </section>
           )}
           <section className="upload-section">
@@ -365,30 +198,19 @@ export default function Home() {
                   <div className="video-info">
                     <div>
                       <div className="video-filename">{videoFile.name}</div>
-                      <div className="video-size">
-                        {(videoFile.size / 1024 / 1024).toFixed(1)} MB
-                        {videoMeta && ` · ${videoMeta.width}×${videoMeta.height} · ${videoMeta.duration}s`}
-                      </div>
+                      <div className="video-size">{(videoFile.size / 1024 / 1024).toFixed(1)} MB</div>
                     </div>
                     <button className="replace-btn" onClick={() => replaceInputRef.current.click()}>↩ Replace</button>
                     <input ref={replaceInputRef} type="file" accept="video/*" style={{ display: 'none' }} onChange={(e) => handleFile(e.target.files[0])} />
                   </div>
                 </div>
+
                 <div className="platform-select">
                   <h4>Content Type</h4>
                   <div className="content-type-grid">
-                    {[
-                      { id: "talking", emoji: "🗣️", label: "Talking to Camera", desc: "You're speaking to the viewer — tutorials, advice, opinions, fitness tips, education, reviews" },
-                      { id: "footage", emoji: "🎬", label: "Footage / Vlog", desc: "Clips of things happening — day in the life, travel, room tours, behind the scenes, hauls" },
-                      { id: "skit", emoji: "😂", label: "Skit / Comedy / Trends", desc: "You're performing — comedy bits, skits, trend participation, reactions, characters" },
-                      { id: "product", emoji: "🛍️", label: "Product / Brand", desc: "Promoting or showcasing something — ads, reviews, unboxings, business content" },
-                      { id: "aesthetic", emoji: "🎵", label: "Aesthetic / Vibe", desc: "Mood-driven content — music videos, artistic edits, fashion, visual storytelling with no talking" },
-                    ].map(ct => (
+                    {contentTypes.map(ct => (
                       <button key={ct.id} className={`content-type-btn ${contentType === ct.id ? 'active' : ''}`} onClick={() => setContentType(ct.id)}>
-                        <div className="ct-top">
-                          <span className="ct-emoji">{ct.emoji}</span>
-                          <span className="ct-label">{ct.label}</span>
-                        </div>
+                        <div className="ct-top"><span className="ct-emoji">{ct.emoji}</span><span className="ct-label">{ct.label}</span></div>
                         <span className="ct-desc">{ct.desc}</span>
                       </button>
                     ))}
@@ -403,7 +225,10 @@ export default function Home() {
                     ))}
                   </div>
                 </div>
-                <button className="analyze-btn" onClick={analyzeVideo} disabled={!contentType}>{error ? 'Something went wrong — try again' : contentType ? 'Roast My Video →' : 'Select a content type first'}</button>
+
+                <button className="analyze-btn" onClick={analyzeVideo} disabled={!contentType}>
+                  {error ? 'Something went wrong — try again' : contentType ? 'Roast My Video →' : 'Select a content type first'}
+                </button>
               </>
             )}
 
@@ -439,11 +264,11 @@ export default function Home() {
                 {results.findings?.map((f, i) => (
                   <div key={i} className="feedback-card">
                     <div className="card-header">
-                      <div className="card-icon-wrap" style={{ background: importanceColor(f.importance) + '22' }}>
+                      <div className="card-icon-wrap" style={{ background: ic(f.importance) + '22' }}>
                         <span style={{ fontSize: 20 }}>{f.icon || '⚠️'}</span>
                       </div>
                       <div className="card-title-group">
-                        <div className="card-category" style={{ color: importanceColor(f.importance) }}>#{f.rank} — {f.importance}</div>
+                        <div className="card-category" style={{ color: ic(f.importance) }}>#{f.rank} — {f.importance}</div>
                         <div className="card-title">{f.title}</div>
                       </div>
                     </div>
@@ -463,14 +288,15 @@ export default function Home() {
                 <button className="rehook-prompt-btn" onClick={() => setActiveTab('rehook')}>Re-Hook Me →</button>
               </div>
               <div className="result-actions">
-                <button className="replace-result-btn" onClick={() => { setResults(null); setVideoFile(null); setVideoUrl(null); setVideoMeta(null); setError(false); setContentType(''); }}>↩ Try another video</button>
-                <button className="retry-btn" onClick={() => { setResults(null); setVideoFile(null); setVideoUrl(null); setVideoMeta(null); setError(false); setContentType(''); }}>+ New Analysis</button>
+                <button className="replace-result-btn" onClick={resetAnalyze}>↩ Try another video</button>
+                <button className="retry-btn" onClick={resetAnalyze}>+ New Analysis</button>
               </div>
             </section>
           )}
         </>
       )}
 
+      {/* RE-HOOK */}
       {activeTab === 'rehook' && (
         <section className="tool-section">
           <div className="tool-hero">
@@ -488,7 +314,7 @@ export default function Home() {
           </div>
           <textarea className="script-input" placeholder="Paste your hook or opening line here..." value={hookScript} onChange={(e) => setHookScript(e.target.value)} rows={4} />
           <button className="analyze-btn" onClick={reHook} disabled={hookLoading || !hookScript.trim()}>{hookLoading ? 'Rewriting...' : 'Re-Hook Me →'}</button>
-          {hookLoading && <div className="loading-state"><div className="loading-spinner" /><h3>Rewriting 5 ways...</h3><p>Using psychological frameworks proven to stop scrolls</p></div>}
+          {hookLoading && <div className="loading-state"><div className="loading-spinner" /><h3>Rewriting 5 ways...</h3></div>}
           {hookResults && (
             <div className="hook-results">
               <div className="hook-original">
@@ -505,7 +331,7 @@ export default function Home() {
                     </div>
                     <div className="hook-text">"{h.hook}"</div>
                     <div className="hook-why">{h.why}</div>
-                    <button className="copy-btn" onClick={() => copyToClipboard(h.hook)}>Copy ↗</button>
+                    <button className="copy-btn" onClick={() => copy(h.hook)}>Copy ↗</button>
                   </div>
                 ))}
               </div>
@@ -515,6 +341,7 @@ export default function Home() {
         </section>
       )}
 
+      {/* FLOP */}
       {activeTab === 'flop' && (
         <section className="tool-section">
           <div className="tool-hero">
@@ -535,12 +362,9 @@ export default function Home() {
               <div className="video-info">
                 <div>
                   <div className="video-filename">{flopFile.name}</div>
-                  <div className="video-size">
-                    {(flopFile.size / 1024 / 1024).toFixed(1)} MB — Ready for its autopsy
-                    {flopMeta && ` · ${flopMeta.width}×${flopMeta.height}`}
-                  </div>
+                  <div className="video-size">{(flopFile.size / 1024 / 1024).toFixed(1)} MB — Ready for autopsy</div>
                 </div>
-                <button className="replace-btn" onClick={() => { setFlopFile(null); setFlopUrl(null); setFlopResults(null); setFlopMeta(null); }}>↩ Replace</button>
+                <button className="replace-btn" onClick={() => { setFlopFile(null); setFlopUrl(null); setFlopResults(null); }}>↩ Replace</button>
               </div>
             </div>
           )}
@@ -573,23 +397,23 @@ export default function Home() {
               ))}
               <div className="resurrection-card"><div className="resurrection-label">🔄 THE RESURRECTION</div><div className="resurrection-text">{flopResults.resurrection}</div></div>
               <div className="closer-card">{flopResults.closer}</div>
-              <button className="retry-btn" style={{ width: '100%', marginTop: 24 }} onClick={() => { setFlopResults(null); setFlopFile(null); setFlopUrl(null); setFlopContext(''); setFlopMeta(null); }}>+ Autopsy Another Video</button>
+              <button className="retry-btn" style={{ width: '100%', marginTop: 24 }} onClick={() => { setFlopResults(null); setFlopFile(null); setFlopUrl(null); setFlopContext(''); }}>+ Autopsy Another Video</button>
             </div>
           )}
         </section>
       )}
 
-      {!results && !hookResults && !flopResults && activeTab === 'analyze' && (
+      {!results && !hookResults && !flopResults && activeTab === 'analyze' && !videoFile && !loading && (
         <section className="principles-strip">
           <h3>What we actually analyze</h3>
           <div className="principles-grid">
             {[
-              { icon: '👁️', name: 'Real Visual Analysis', desc: 'We extract 8 actual frames and Claude sees your exact colors, lighting, background, and contrast.' },
-              { icon: '🎵', name: 'Real Audio Analysis', desc: 'AssemblyAI processes your audio, distinguishes speech from music, and measures pace in WPM.' },
-              { icon: '✂️', name: 'Real Cut Detection', desc: 'Histogram-based algorithm samples your video 10 times per second to detect actual cuts.' },
-              { icon: '📐', name: 'Exact Dimensions', desc: 'We read your actual video width and height so we never wrongly suggest shooting vertical.' },
-              { icon: '🧠', name: 'Hook Psychology', desc: 'The first 1.5 seconds determine 80% of your completion rate. We analyze it specifically.' },
-              { icon: '🎯', name: 'Ranked by Impact', desc: 'Every finding ranked Critical to Polish so you know exactly what to fix first.' },
+              { icon: '👁️', name: 'Real Visual Analysis', desc: 'FFmpeg extracts actual frames. Claude sees your exact colors, lighting, background, and contrast.' },
+              { icon: '🎵', name: 'Real Audio Analysis', desc: 'AssemblyAI transcribes your speech, detects filler words, and measures your pace in WPM.' },
+              { icon: '✂️', name: 'Real Cut Detection', desc: 'FFmpeg scene detection finds actual cuts — camera movement is NOT counted as a cut.' },
+              { icon: '📐', name: 'Exact Dimensions', desc: 'We read your actual video dimensions so we never wrongly suggest shooting vertical.' },
+              { icon: '🎯', name: 'Content-Specific', desc: '5 content types — feedback tailored to what actually matters for your style of video.' },
+              { icon: '🏆', name: 'Ranked by Impact', desc: 'Every finding ranked Critical to Polish so you know exactly what to fix first.' },
             ].map((p, i) => (
               <div key={i} className="principle-item">
                 <div className="p-icon">{p.icon}</div>
@@ -632,16 +456,6 @@ export default function Home() {
         .file-types { margin-top: 16px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
         .file-tag { background: #1E1E1E; border: 1px solid #2A2A2A; padding: 4px 10px; border-radius: 6px; font-size: 12px; color: #888; }
         .analysis-tags { margin-top: 14px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
-        .content-type-grid { display: flex; flex-direction: column; gap: 10px; }
-        .content-type-btn { background: #141414; border: 1px solid #2A2A2A; color: #888; padding: 14px 16px; border-radius: 12px; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.15s; font-family: 'Inter', sans-serif; display: flex; flex-direction: column; gap: 6px; text-align: left; width: 100%; }
-        .content-type-btn:hover { border-color: #FF3B00; color: #FAFAFA; background: rgba(255,59,0,0.05); }
-        .content-type-btn.active { background: rgba(255,59,0,0.12); border-color: #FF3B00; color: #FF3B00; }
-        .ct-top { display: flex; align-items: center; gap: 10px; }
-        .ct-emoji { font-size: 20px; flex-shrink: 0; }
-        .ct-label { font-size: 14px; font-weight: 600; color: inherit; }
-        .ct-desc { font-size: 12px; color: #666; line-height: 1.4; padding-left: 30px; }
-        .content-type-btn.active .ct-desc { color: rgba(255,59,0,0.7); }
-        .content-type-btn:hover .ct-desc { color: #888; }
         .atag { background: rgba(255,59,0,0.1); border: 1px solid rgba(255,59,0,0.3); color: #FF3B00; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
         .video-preview { margin-top: 24px; border-radius: 12px; overflow: hidden; background: #141414; border: 1px solid #2A2A2A; }
         .video-preview video { width: 100%; max-height: 380px; object-fit: contain; display: block; background: #000; }
@@ -656,6 +470,15 @@ export default function Home() {
         .platform-btn { background: #141414; border: 1px solid #2A2A2A; color: #FAFAFA; padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.15s; font-family: 'Inter', sans-serif; }
         .platform-btn:hover { border-color: #FF3B00; color: #FF3B00; }
         .platform-btn.active { background: #FF3B00; border-color: #FF3B00; color: white; }
+        .content-type-grid { display: flex; flex-direction: column; gap: 10px; }
+        .content-type-btn { background: #141414; border: 1px solid #2A2A2A; color: #888; padding: 14px 16px; border-radius: 12px; cursor: pointer; transition: all 0.15s; font-family: 'Inter', sans-serif; display: flex; flex-direction: column; gap: 6px; text-align: left; width: 100%; }
+        .content-type-btn:hover { border-color: #FF3B00; color: #FAFAFA; background: rgba(255,59,0,0.05); }
+        .content-type-btn.active { background: rgba(255,59,0,0.12); border-color: #FF3B00; color: #FF3B00; }
+        .ct-top { display: flex; align-items: center; gap: 10px; }
+        .ct-emoji { font-size: 20px; flex-shrink: 0; }
+        .ct-label { font-size: 14px; font-weight: 600; color: inherit; }
+        .ct-desc { font-size: 12px; color: #666; line-height: 1.4; padding-left: 30px; }
+        .content-type-btn.active .ct-desc { color: rgba(255,59,0,0.7); }
         .analyze-btn { display: block; width: 100%; margin-top: 20px; padding: 18px; background: #FF3B00; color: white; border: none; border-radius: 12px; font-family: 'Syne', sans-serif; font-size: 18px; font-weight: 700; cursor: pointer; transition: all 0.2s; }
         .analyze-btn:hover { background: #e03400; }
         .analyze-btn:disabled { background: #2A2A2A; color: #555; cursor: not-allowed; }

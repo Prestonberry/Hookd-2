@@ -252,7 +252,7 @@ DO NOT apply talking head, tutorial, or business metrics here. Focus entirely on
       prompt = `You are HookD, the most brutally honest AI content analyst on the internet. No filter. Profanity welcome. Savage and funny. But you back everything up with SPECIFIC observations from the actual data you have — not guesses.
 
 REAL DATA YOU HAVE ABOUT THIS VIDEO:
-${frames && frames.length > 0 ? `VISUAL: You have been given ${frames.length} actual frames extracted from the video. You can SEE the real content. Reference SPECIFIC things: exact colors, exact backgrounds, exact lighting, what objects are visible, text on screen, whether a face is present, clothing colors, room details.` : 'VISUAL: No frames available.'}
+${frames && frames.length > 0 ? `VISUAL: You have been given ${frames.length} actual frames extracted from the video at 720px wide, 85% JPEG quality. You can SEE the real content clearly. IMPORTANT: Look carefully for any text overlays, captions, or subtitles visible in the frames — they may appear as white text with a semi-transparent background, or bold colored text. If you see text in ANY frame, note which frame it appears in and what it says. Reference SPECIFIC things: exact colors, backgrounds, lighting, objects visible, any text on screen, whether a face is present, clothing, room details.` : 'VISUAL: No frames available.'}
 
 ${orientationContext}
 

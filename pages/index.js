@@ -82,6 +82,7 @@ export default function Home() {
   const replaceInputRef = useRef();
 
   const [hookScript, setHookScript] = useState('');
+  const [hookContext, setHookContext] = useState('');
   const [hookResults, setHookResults] = useState(null);
   const [hookLoading, setHookLoading] = useState(false);
 
@@ -173,7 +174,7 @@ export default function Home() {
       const res = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode: 'rehook', script: hookScript, platform })
+        body: JSON.stringify({ mode: 'rehook', script: hookScript, platform, hookContext })
       });
       if (!res.ok) throw new Error('Failed');
       setHookResults(await res.json());
@@ -410,7 +411,8 @@ export default function Home() {
               ))}
             </div>
           </div>
-          <textarea className="script-input" placeholder="Paste your hook or opening line here..." value={hookScript} onChange={(e) => setHookScript(e.target.value)} rows={4} />
+          <textarea className="script-input" placeholder="Paste your hook or opening line here..." value={hookScript} onChange={(e) => setHookScript(e.target.value)} rows={3} />
+          <textarea className="script-input" placeholder="Optional but recommended: What is this video actually about? Give us context so we preserve your exact message. E.g. 'This is about how founder-led content strategy hurts scaling brands — founders should not be the face of the brand'" value={hookContext} onChange={(e) => setHookContext(e.target.value)} rows={3} style={{ marginTop: 10, borderColor: '#333' }} />
           <button className="analyze-btn" onClick={reHook} disabled={hookLoading || !hookScript.trim()}>{hookLoading ? 'Rewriting...' : 'Re-Hook Me →'}</button>
           {hookLoading && <div className="loading-state"><div className="loading-spinner" /><h3>Rewriting 5 ways...</h3></div>}
           {hookResults && (

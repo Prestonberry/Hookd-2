@@ -15,8 +15,8 @@ async function extractFrames(file, numFrames = 8) {
     video.playsInline = true;
 
     video.addEventListener('loadedmetadata', () => {
-      canvas.width = 720;
-      canvas.height = Math.round(720 * (video.videoHeight / video.videoWidth)) || 1280;
+      canvas.width = 540;
+      canvas.height = Math.round(540 * (video.videoHeight / video.videoWidth)) || 960;
       const duration = video.duration;
       // Always include frame 0 (very first frame) and spread the rest evenly
       const timestamps = [0.01, ...Array.from({ length: numFrames - 1 }, (_, i) =>
@@ -36,7 +36,7 @@ async function extractFrames(file, numFrames = 8) {
       video.addEventListener('seeked', () => {
         try {
           ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-          frames.push(canvas.toDataURL('image/jpeg', 0.85).split(',')[1]); // Higher quality for text readability
+          frames.push(canvas.toDataURL('image/jpeg', 0.75).split(',')[1]);
         } catch (e) {}
         index++;
         captureNext();
@@ -205,9 +205,9 @@ export default function Home() {
   };
 
   const steps = [
-    'Extracting video frames...',
-    'Running FFmpeg analysis...',
-    'Analyzing audio with AssemblyAI...',
+    'Uploading your video...',
+    'Running full video analysis...',
+    'Processing results...',
     'Generating your roast...'
   ];
 
@@ -216,51 +216,32 @@ export default function Home() {
     setError(false);
 
     try {
-      // Step 1: Extract frames for visual analysis
       setLoadingStep(1);
       setLoadingMsg(steps[0]);
-      const frames = await extractFrames(videoFile, 8);
 
-      // Step 2: Send to Railway for FFmpeg analysis (cuts, audio, metadata)
+      const formData = new FormData();
+      formData.append('video', videoFile);
+      formData.append('platform', platform);
+      formData.append('contentType', contentType);
+      formData.append('mode', 'analyze');
+
       setLoadingStep(2);
       setLoadingMsg(steps[1]);
-      const railwayData = await analyzeWithRailway(videoFile);
 
-      // Step 3: Extract audio for AssemblyAI transcription
+      const res = await fetch('/api/proxy-analyze', {
+        method: 'POST',
+        body: formData
+      });
+
       setLoadingStep(3);
       setLoadingMsg(steps[2]);
-      const { hasAudio, audioBase64 } = await extractAudio(videoFile);
 
-      // Step 4: Send everything to Claude
+      if (!res.ok) throw new Error('Analysis failed');
+      const data = await res.json();
+
       setLoadingStep(4);
       setLoadingMsg(steps[3]);
 
-      const res = await fetch('/api/analyze', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          mode: 'analyze',
-          filename: videoFile?.name || 'video.mp4',
-          platform,
-          filesize: videoFile?.size || 0,
-          contentType,
-          frames,
-          audioData: audioBase64,
-          hasAudio: railwayData?.hasAudio ?? hasAudio,
-          videoDuration: railwayData?.duration || videoMeta?.duration || 0,
-          cutCount: railwayData?.cutCount ?? 0,
-          cutTimestamps: railwayData?.cutTimestamps || [],
-          avgSecsBetweenCuts: railwayData?.avgSecsBetweenCuts || 0,
-          videoWidth: railwayData?.width || videoMeta?.width || 0,
-          videoHeight: railwayData?.height || videoMeta?.height || 0,
-          isVertical: railwayData?.isVertical ?? videoMeta?.isVertical ?? true,
-          railwaySummary: railwayData?.summary || null,
-          audioAnalysis: railwayData?.audioAnalysis || null
-        })
-      });
-
-      if (!res.ok) throw new Error('Server error');
-      const data = await res.json();
       setResults(data);
     } catch (err) {
       console.error(err);
@@ -277,10 +258,17 @@ export default function Home() {
     setHookLoading(true);
     setHookResults(null);
     try {
-      const res = await fetch('/api/analyze', {
+      const formData = new FormData();
+      formData.append('mode', 'rehook');
+      formData.append('script', hookScript);
+      formData.append('platform', platform);
+      // Create a tiny dummy file since Railway expects a video field
+      const dummyBlob = new Blob(['dummy'], { type: 'video/mp4' });
+      formData.append('video', dummyBlob, 'dummy.mp4');
+
+      const res = await fetch('/api/proxy-analyze', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode: 'rehook', script: hookScript, platform })
+        body: formData
       });
       if (!res.ok) throw new Error('Server error');
       setHookResults(await res.json());
@@ -292,34 +280,17 @@ export default function Home() {
     setFlopLoading(true);
     setFlopResults(null);
     try {
-      const frames = flopFile ? await extractFrames(flopFile, 8) : [];
-      const railwayData = flopFile ? await analyzeWithRailway(flopFile) : null;
-      const { hasAudio, audioBase64 } = flopFile ? await extractAudio(flopFile) : { hasAudio: false, audioBase64: null };
+      const formData = new FormData();
+      if (flopFile) formData.append('video', flopFile);
+      formData.append('platform', platform);
+      formData.append('mode', 'flop');
+      formData.append('flop_context', flopContext);
 
-      const res = await fetch('/api/analyze', {
+      const res = await fetch('/api/proxy-analyze', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          mode: 'flop',
-          filename: flopFile?.name || 'video.mp4',
-          filesize: flopFile?.size || 0,
-          platform,
-          flop_context: flopContext,
-          frames,
-          audioData: audioBase64,
-          hasAudio: railwayData?.hasAudio ?? hasAudio,
-          videoDuration: railwayData?.duration || flopMeta?.duration || 0,
-          cutCount: railwayData?.cutCount ?? 0,
-          cutTimestamps: railwayData?.cutTimestamps || [],
-          avgSecsBetweenCuts: railwayData?.avgSecsBetweenCuts || 0,
-          videoWidth: railwayData?.width || flopMeta?.width || 0,
-          videoHeight: railwayData?.height || flopMeta?.height || 0,
-          isVertical: railwayData?.isVertical ?? flopMeta?.isVertical ?? true,
-          railwaySummary: railwayData?.summary || null,
-          audioAnalysis: railwayData?.audioAnalysis || null
-        })
+        body: formData
       });
-      if (!res.ok) throw new Error('Server error');
+      if (!res.ok) throw new Error('Analysis failed');
       setFlopResults(await res.json());
     } catch (err) { console.error(err); }
     finally { setFlopLoading(false); }

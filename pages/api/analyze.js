@@ -183,15 +183,71 @@ export default async function handler(req, res) {
       }
 
       const contentTypeInstructions = {
-        'talking': `CONTENT TYPE: TALKING HEAD / EDUCATIONAL — Focus on: eye contact with camera, energy and delivery, facial expressions, hook statement in first 3 seconds, caption strategy for muted viewing, face lighting, audio clarity, speaking pace, body language. DO NOT heavily critique environment unless actively distracting.`,
-        'lifestyle': `CONTENT TYPE: LIFESTYLE / VLOG — Focus on: visual storytelling, environment and setting, pacing and cuts, lighting across settings, color palette, hook creating curiosity, music matching vibe, text guiding narrative, thumbnail potential. DO NOT heavily critique speaking delivery unless there's a voiceover.`,
-        'business': `CONTENT TYPE: BUSINESS / BRAND / PRODUCT — Focus on: value proposition clarity in 3 seconds, trust and professionalism signals, product/service visibility, clear call to action, hook opening with problem or benefit, text highlighting key benefits, social proof if present. Focus on CONVERSION and CLARITY.`,
-        'aesthetic': `CONTENT TYPE: AESTHETIC / ARTISTIC / MUSIC — Focus on: visual cohesion across frames, color grading consistency, music sync with cuts, mood and atmosphere clarity, visual contrast and composition, uniqueness in feed, pacing relative to music. DO NOT apply talking head or business metrics. Focus on MOOD and VISUAL IMPACT.`,
-        'tutorial': `CONTENT TYPE: HOW-TO / TUTORIAL / FITNESS — Focus on: clarity of instruction, visibility of key actions, pacing to follow along, text labeling steps, hook showing end result or value, camera angles serving instruction, audio clarity, completion motivation. Focus on CLARITY and INSTRUCTIONAL EFFECTIVENESS.`,
-        'entertainment': `CONTENT TYPE: ENTERTAINMENT / COMEDY / SKITS — Focus on: hook energy in first 0.5 seconds, comedy and reaction timing, energy level matching content, pattern interrupts and surprises, sound design for comedic impact, facial expressions and performance, trend execution clarity, rewatchability. Focus on ENTERTAINMENT VALUE and TIMING.`,
-        'commentary': `CONTENT TYPE: NEWS / COMMENTARY / HOT TAKES — Focus on: topic established immediately in hook, credibility signals, energy and conviction, pacing of argument, captions highlighting key points for muted viewers, visual engagement beyond static shot, call to action inviting engagement, background reinforcing personal brand. Focus on AUTHORITY and CLARITY OF ARGUMENT.`
+        'talking': `CONTENT TYPE: TALKING TO CAMERA
+The creator is speaking directly to the viewer. This covers tutorials, advice, opinions, education, fitness tips, book reviews, commentary — anything where the person IS the content.
+PRIORITY DIMENSIONS:
+- Eye contact with camera lens (not screen) — critical for connection
+- Energy, delivery, and expressiveness — flat delivery loses viewers fast
+- Hook statement in first 3 seconds — did they say something compelling immediately?
+- Face lighting — is the face clear and well-lit?
+- Audio clarity — is the voice easy to hear and understand?
+- Speaking pace — too slow loses attention, too fast loses comprehension
+- Body language and gestures — stiff or natural and engaging?
+- Caption strategy — are captions present for muted viewers?
+- Background — clean and intentional or distracting?
+DO NOT heavily critique the environment or aesthetic unless it is actively hurting the video. The PERSON and their DELIVERY is what matters here.`,
+
+        'footage': `CONTENT TYPE: FOOTAGE / VLOG / DAY IN THE LIFE
+The content is made up of clips showing things happening — environments, experiences, activities, travel, room tours, hauls, behind the scenes. The world is the content, not a talking head.
+PRIORITY DIMENSIONS:
+- Visual storytelling — does it tell a clear story without needing words?
+- Hook — does the first frame create instant curiosity about what's happening?
+- Pacing and cuts — do cuts create energy and narrative momentum?
+- Lighting across different settings — is it consistently watchable?
+- Color palette and visual consistency
+- Music choice and whether it matches the energy
+- Text overlays guiding the narrative at key moments
+- Thumbnail potential — is there a visually compelling frame?
+DO NOT critique speaking delivery unless there is a voiceover. Focus on VISUAL STORYTELLING and PACING.`,
+
+        'skit': `CONTENT TYPE: SKIT / COMEDY / PERFORMANCE / TRENDS
+The creator is performing — acting out a scenario, doing a comedy bit, participating in a trend, reacting, or playing a character.
+PRIORITY DIMENSIONS:
+- Hook energy in the first 0.5 seconds — performance needs to grab immediately
+- Comedic or dramatic timing — is the punchline, reaction, or reveal timed correctly?
+- Energy level — does the performance have enough energy for the platform?
+- Facial expressions and commitment to the bit
+- Pattern interrupts and unexpected moments
+- Sound design and audio effects if used
+- Trend execution — if it's a trend format, is it executed clearly?
+- Rewatchability — is there a reason to watch it again?
+DO NOT apply tutorial or business metrics. Focus on PERFORMANCE, TIMING, and ENTERTAINMENT VALUE.`,
+
+        'product': `CONTENT TYPE: PRODUCT / BRAND / PROMOTION
+The video is promoting, showcasing, or reviewing a product, service, or brand. This includes business content, ads, testimonials, unboxings, and reviews.
+PRIORITY DIMENSIONS:
+- Value proposition clarity — does the viewer understand what's being offered within 3 seconds?
+- Product visibility — is what's being shown clearly seen and well-lit?
+- Trust signals — does it look credible and professional?
+- Hook — does it open with a problem being solved or a compelling benefit?
+- Call to action — is there a clear next step for the viewer?
+- Text overlays highlighting key benefits or offers
+- Pacing — does it hold attention long enough to deliver the message?
+Focus on CONVERSION, CLARITY, and CREDIBILITY.`,
+
+        'aesthetic': `CONTENT TYPE: AESTHETIC / VIBE / MUSIC / ARTISTIC
+The content is mood-driven — visual aesthetics, music videos, artistic edits, fashion, or content where the feeling IS the point. There may be no talking at all.
+PRIORITY DIMENSIONS:
+- Visual cohesion — do all frames feel like they belong together?
+- Color grading and consistency across the video
+- Music sync — do cuts align with beats or musical moments?
+- Mood and atmosphere — is the intended feeling clear and consistent?
+- Visual contrast and composition in each frame
+- Uniqueness — does it stand out in a feed of similar content?
+- Pacing relative to the music and mood
+DO NOT apply talking head, tutorial, or business metrics here. Focus entirely on MOOD, AESTHETICS, and VISUAL IMPACT.`
       };
-      const contentInstruction = contentTypeInstructions[contentType] || `CONTENT TYPE: General short-form content. Analyze all dimensions.`;
+      const contentInstruction = contentTypeInstructions[contentType] || `CONTENT TYPE: General short-form content. Analyze all dimensions equally.`;
 
       prompt = `You are HookD, the most brutally honest AI content analyst on the internet. No filter. Profanity welcome. Savage and funny. But you back everything up with SPECIFIC observations from the actual data you have — not guesses.
 

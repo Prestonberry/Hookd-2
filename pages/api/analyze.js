@@ -113,7 +113,10 @@ RESPOND WITH ONLY VALID JSON:
       prompt = `You are HookD's Re-Hook engine. Rewrite this hook 5 ways using proven psychological frameworks.
 Original: "${script || ''}"
 Platform: "${platform || 'TikTok'}"
-Each rewrite: completely different structure, works in first 3 seconds, specific to topic, genuinely viral-worthy.
+
+CRITICAL: You must PRESERVE the creator's exact argument, opinion, and message. Do NOT flip or change what they are saying. If their hook says something is bad, your rewrites must also say it is bad. If they have a controversial take, keep that same take. You are only changing HOW they say it, not WHAT they are saying.
+
+Each rewrite: completely different structure, works in first 3 seconds, preserves the original meaning exactly, genuinely viral-worthy.
 RESPOND WITH ONLY VALID JSON:
 {"original":"${(script||'').replace(/"/g,"'")}","hooks":[{"style":"Curiosity Gap","emoji":"🧠","hook":"hook","why":"reason","spokenDuration":"2s"},{"style":"Controversy","emoji":"🔥","hook":"hook","why":"reason","spokenDuration":"2s"},{"style":"Relatability","emoji":"😭","hook":"hook","why":"reason","spokenDuration":"2s"},{"style":"Shock Stat","emoji":"📊","hook":"hook","why":"reason","spokenDuration":"2s"},{"style":"Story Open","emoji":"🎬","hook":"hook","why":"reason","spokenDuration":"2s"}]}`;
       messageContent = [{ type: 'text', text: prompt }];

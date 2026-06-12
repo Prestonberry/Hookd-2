@@ -11,7 +11,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { filename, platform, filesize, mode, script, flop_context, frames, hasAudio, videoDuration, cutCount, videoWidth, videoHeight, isVertical, audioAnalysis, contentType } = req.body;
+  const { filename, platform, filesize, mode, script, flop_context, frames, hasAudio, videoDuration, cutCount, videoWidth, videoHeight, isVertical, audioAnalysis, contentType, hookContext } = req.body;
   const analysisMode = mode || 'analyze';
 
   try {
@@ -114,9 +114,11 @@ RESPOND WITH ONLY VALID JSON:
 Original: "${script || ''}"
 Platform: "${platform || 'TikTok'}"
 
-CRITICAL: You must PRESERVE the creator's exact argument, opinion, and message. Do NOT flip or change what they are saying. If their hook says something is bad, your rewrites must also say it is bad. If they have a controversial take, keep that same take. You are only changing HOW they say it, not WHAT they are saying.
+CRITICAL: You must PRESERVE the creator's exact argument, opinion, and message. Do NOT flip or change what they are saying. You are only changing HOW they say it, not WHAT they are saying.
 
-Each rewrite: completely different structure, works in first 3 seconds, preserves the original meaning exactly, genuinely viral-worthy.
+${hookContext ? `CREATOR CONTEXT: "${hookContext}" — use this to fully understand the nuance of what they mean before rewriting.` : ''}
+
+Each rewrite: completely different structure, works in first 3 seconds, preserves the original meaning and nuance exactly, genuinely viral-worthy.
 RESPOND WITH ONLY VALID JSON:
 {"original":"${(script||'').replace(/"/g,"'")}","hooks":[{"style":"Curiosity Gap","emoji":"🧠","hook":"hook","why":"reason","spokenDuration":"2s"},{"style":"Controversy","emoji":"🔥","hook":"hook","why":"reason","spokenDuration":"2s"},{"style":"Relatability","emoji":"😭","hook":"hook","why":"reason","spokenDuration":"2s"},{"style":"Shock Stat","emoji":"📊","hook":"hook","why":"reason","spokenDuration":"2s"},{"style":"Story Open","emoji":"🎬","hook":"hook","why":"reason","spokenDuration":"2s"}]}`;
       messageContent = [{ type: 'text', text: prompt }];

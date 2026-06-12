@@ -406,17 +406,18 @@ export default function Home() {
                   <h4>Content Type</h4>
                   <div className="content-type-grid">
                     {[
-                      { id: 'talking', emoji: '💬', label: 'Talking Head' },
-                      { id: 'lifestyle', emoji: '🎬', label: 'Lifestyle / Vlog' },
-                      { id: 'business', emoji: '🛍️', label: 'Business / Brand' },
-                      { id: 'aesthetic', emoji: '🎵', label: 'Aesthetic / Music' },
-                      { id: 'tutorial', emoji: '💪', label: 'Tutorial / How-To' },
-                      { id: 'entertainment', emoji: '😂', label: 'Comedy / Entertainment' },
-                      { id: 'commentary', emoji: '📰', label: 'Commentary / Opinion' },
+                      { id: 'talking', emoji: '🗣️', label: 'Talking to Camera', desc: 'You're speaking to the viewer — tutorials, advice, opinions, fitness tips, education, reviews' },
+                      { id: 'footage', emoji: '🎬', label: 'Footage / Vlog', desc: 'Clips of things happening — day in the life, travel, room tours, behind the scenes, hauls' },
+                      { id: 'skit', emoji: '😂', label: 'Skit / Comedy / Trends', desc: 'You're performing — comedy bits, skits, trend participation, reactions, characters' },
+                      { id: 'product', emoji: '🛍️', label: 'Product / Brand', desc: 'Promoting or showcasing something — ads, reviews, unboxings, business content' },
+                      { id: 'aesthetic', emoji: '🎵', label: 'Aesthetic / Vibe', desc: 'Mood-driven content — music videos, artistic edits, fashion, visual storytelling with no talking' },
                     ].map(ct => (
                       <button key={ct.id} className={`content-type-btn ${contentType === ct.id ? 'active' : ''}`} onClick={() => setContentType(ct.id)}>
-                        <span className="ct-emoji">{ct.emoji}</span>
-                        <span className="ct-label">{ct.label}</span>
+                        <div className="ct-top">
+                          <span className="ct-emoji">{ct.emoji}</span>
+                          <span className="ct-label">{ct.label}</span>
+                        </div>
+                        <span className="ct-desc">{ct.desc}</span>
                       </button>
                     ))}
                   </div>
@@ -659,12 +660,16 @@ export default function Home() {
         .file-types { margin-top: 16px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
         .file-tag { background: #1E1E1E; border: 1px solid #2A2A2A; padding: 4px 10px; border-radius: 6px; font-size: 12px; color: #888; }
         .analysis-tags { margin-top: 14px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
-        .content-type-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
-        .content-type-btn { background: #141414; border: 1px solid #2A2A2A; color: #888; padding: 12px 10px; border-radius: 10px; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.15s; font-family: 'Inter', sans-serif; display: flex; flex-direction: column; align-items: center; gap: 6px; }
-        .content-type-btn:hover { border-color: #FF3B00; color: #FAFAFA; }
-        .content-type-btn.active { background: rgba(255,59,0,0.15); border-color: #FF3B00; color: #FF3B00; }
-        .ct-emoji { font-size: 20px; }
-        .ct-label { font-size: 12px; text-align: center; line-height: 1.3; }
+        .content-type-grid { display: flex; flex-direction: column; gap: 10px; }
+        .content-type-btn { background: #141414; border: 1px solid #2A2A2A; color: #888; padding: 14px 16px; border-radius: 12px; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.15s; font-family: 'Inter', sans-serif; display: flex; flex-direction: column; gap: 6px; text-align: left; width: 100%; }
+        .content-type-btn:hover { border-color: #FF3B00; color: #FAFAFA; background: rgba(255,59,0,0.05); }
+        .content-type-btn.active { background: rgba(255,59,0,0.12); border-color: #FF3B00; color: #FF3B00; }
+        .ct-top { display: flex; align-items: center; gap: 10px; }
+        .ct-emoji { font-size: 20px; flex-shrink: 0; }
+        .ct-label { font-size: 14px; font-weight: 600; color: inherit; }
+        .ct-desc { font-size: 12px; color: #666; line-height: 1.4; padding-left: 30px; }
+        .content-type-btn.active .ct-desc { color: rgba(255,59,0,0.7); }
+        .content-type-btn:hover .ct-desc { color: #888; }
         .atag { background: rgba(255,59,0,0.1); border: 1px solid rgba(255,59,0,0.3); color: #FF3B00; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
         .video-preview { margin-top: 24px; border-radius: 12px; overflow: hidden; background: #141414; border: 1px solid #2A2A2A; }
         .video-preview video { width: 100%; max-height: 380px; object-fit: contain; display: block; background: #000; }

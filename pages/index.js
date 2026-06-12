@@ -89,6 +89,7 @@ export default function Home() {
   const [flopFile, setFlopFile] = useState(null);
   const [flopUrl, setFlopUrl] = useState(null);
   const [flopContext, setFlopContext] = useState('');
+  const [voicePersona, setVoicePersona] = useState('chef');
   const [flopResults, setFlopResults] = useState(null);
   const [flopLoading, setFlopLoading] = useState(false);
   const flopInputRef = useRef();
@@ -199,6 +200,7 @@ export default function Home() {
           filesize: flopFile?.size || 0,
           platform,
           flop_context: flopContext,
+          voicePersona,
           frames,
           hasAudio,
           videoDuration: meta?.duration || 0,
@@ -477,6 +479,21 @@ export default function Home() {
               ))}
             </div>
           </div>
+          <div className="platform-select" style={{ marginTop: 20 }}>
+            <h4>Who's Roasting You</h4>
+            <div className="voice-grid">
+              {[
+                { id: 'boyfriend', emoji: '🧑‍❤️', name: 'Babe Just Get A Real Job', desc: 'Your unsupportive boyfriend who loves you but really thinks you should look into dental hygiene school' },
+                { id: 'boss', emoji: '📧', name: 'Per My Last Email', desc: 'Your passive aggressive corporate nightmare boss who will CC HR on your thumbnail choices' },
+                { id: 'chef', emoji: '🔪', name: "Hell's Creator", desc: 'A Gordon Ramsay inspired genius who is absolutely appalled by what you just uploaded, you donkey' },
+              ].map(v => (
+                <button key={v.id} className={`voice-btn ${voicePersona === v.id ? 'active' : ''}`} onClick={() => setVoicePersona(v.id)}>
+                  <div className="voice-top"><span className="voice-emoji">{v.emoji}</span><span className="voice-name">{v.name}</span></div>
+                  <span className="voice-desc">{v.desc}</span>
+                </button>
+              ))}
+            </div>
+          </div>
           <textarea className="script-input" placeholder="Optional: How many views? What were you expecting? The more context, the more brutal we can be." value={flopContext} onChange={(e) => setFlopContext(e.target.value)} rows={3} style={{ marginTop: 16 }} />
           <button className="analyze-btn flop-btn" onClick={analyzeFlop} disabled={flopLoading}>{flopLoading ? 'Performing autopsy...' : 'Perform The Autopsy →'}</button>
           {flopLoading && <div className="loading-state"><div className="loading-spinner" /><h3>Performing the autopsy...</h3><p>Analyzing visuals, audio, and pacing</p></div>}
@@ -654,6 +671,15 @@ export default function Home() {
         .resurrection-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 2px; color: #00E87A; margin-bottom: 12px; }
         .resurrection-text { font-size: 15px; color: #FAFAFA; line-height: 1.8; }
         .closer-card { background: #141414; border: 1px solid #2A2A2A; border-radius: 14px; padding: 20px; font-size: 15px; color: #FFB3A0; font-style: italic; text-align: center; line-height: 1.7; }
+        .voice-grid { display: flex; flex-direction: column; gap: 10px; }
+        .voice-btn { background: #141414; border: 1px solid #2A2A2A; color: #888; padding: 14px 16px; border-radius: 12px; cursor: pointer; transition: all 0.15s; font-family: 'Inter', sans-serif; display: flex; flex-direction: column; gap: 6px; text-align: left; width: 100%; }
+        .voice-btn:hover { border-color: #FF3B00; color: #FAFAFA; background: rgba(255,59,0,0.05); }
+        .voice-btn.active { background: rgba(255,59,0,0.12); border-color: #FF3B00; color: #FF3B00; }
+        .voice-top { display: flex; align-items: center; gap: 10px; }
+        .voice-emoji { font-size: 20px; flex-shrink: 0; }
+        .voice-name { font-size: 14px; font-weight: 600; color: inherit; }
+        .voice-desc { font-size: 12px; color: #666; line-height: 1.4; padding-left: 30px; }
+        .voice-btn.active .voice-desc { color: rgba(255,59,0,0.7); }
         .principles-strip { border-top: 1px solid #2A2A2A; padding: 48px 40px; max-width: 760px; margin: 0 auto; }
         .principles-strip h3 { font-size: 12px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: #888; margin-bottom: 24px; }
         .principles-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }

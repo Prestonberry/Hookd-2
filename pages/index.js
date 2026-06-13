@@ -105,11 +105,11 @@ export default function Home() {
     setLoadingStep(1);
     setLoadingMsg(steps[0]);
     try {
-      const frames = await extractFrames(videoFile, 30);
+      const frames = await extractFrames(videoFile, 20);
       setLoadingStep(2); setLoadingMsg(steps[1]);
       const meta = await getVideoMetadata(videoFile);
       setLoadingStep(3); setLoadingMsg(steps[2]);
-      const { hasAudio, audioBase64 } = await extractAudio(videoFile);
+      const { hasAudio } = await extractAudio(videoFile);
       setLoadingStep(4); setLoadingMsg(steps[3]);
 
       const res = await fetch('/api/analyze', {
@@ -120,7 +120,7 @@ export default function Home() {
           filename: videoFile?.name || 'video.mp4',
           platform, contentType,
           filesize: videoFile?.size || 0,
-          frames, hasAudio, audioBase64,
+          frames, hasAudio,
           videoDuration: meta?.duration || 0,
           videoWidth: meta?.width || 0,
           videoHeight: meta?.height || 0,

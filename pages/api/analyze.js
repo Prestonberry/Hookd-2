@@ -173,6 +173,151 @@ RESPOND WITH ONLY VALID JSON:
 
       return res.status(200).json(parsed2);
 
+    // ── CONVERSION MODE ──────────────────────────────────────
+    } else if (analysisMode === 'conversion') {
+      const { funnelStage } = req.body;
+
+      const funnelCriteria = {
+        top: {
+          label: 'Top of Funnel (Awareness)',
+          criteria: `You are judging this ONLY on Top of Funnel criteria:
+1. HOOK SPEED — Does it grab a stranger's attention in under 2 seconds before they know who this brand is?
+2. BRAND CLARITY — Can a new viewer understand what this brand does within 5 seconds?
+3. SHAREABILITY — Is this content interesting or entertaining enough that someone would send it to a friend?
+4. CTA STRENGTH — Does it have a clear, low-commitment next step appropriate for a cold audience (follow, learn more, etc)?
+5. PRODUCTION QUALITY — Is the visual and audio quality high enough to build instant credibility with a stranger?
+6. FUNNEL STAGE ACCURACY — Does this feel like awareness content or is it jumping straight to a sales pitch too early?
+
+For anything missing, frame feedback as: "This ad is missing [X]. Make sure either this ad or another ad in your awareness campaign covers this — cold audiences need [reason] before they'll move forward."`,
+        },
+        middle: {
+          label: 'Middle of Funnel (Consideration)',
+          criteria: `You are judging this ONLY on Middle of Funnel criteria:
+1. TRUST SIGNALS — Does it establish credibility? (expertise, brand story, behind the scenes, credentials)
+2. SOCIAL PROOF DENSITY — Are there reviews, testimonials, results, or numbers that back up the claims?
+3. OBJECTION HANDLING — Does it address the main reasons someone WOULDN'T buy or take the next step?
+4. VALUE CLARITY — Is it crystal clear what problem this solves and who it's for?
+5. CTA STRENGTH — Does it have a clear next step appropriate for a warm audience (sign up, book a call, try free, etc)?
+6. PRODUCTION QUALITY — Is the quality consistent with the price point and brand positioning?
+7. FUNNEL STAGE ACCURACY — Does this feel like consideration content or is it either too cold (awareness) or too pushy (conversion)?
+
+For anything missing, frame feedback as: "This ad is light on [X]. If you're running a full campaign, make sure another ad in your consideration sequence handles this — [reason why it matters at this stage]. If this is standalone, weave it in here."`,
+        },
+        bottom: {
+          label: 'Bottom of Funnel (Conversion)',
+          criteria: `You are judging this ONLY on Bottom of Funnel criteria:
+1. URGENCY — Is there a clear reason to act NOW rather than later? (limited time, limited spots, deadline, etc)
+2. FRICTION REDUCTION — Is the next step obvious, simple, and low-effort? Are barriers removed?
+3. OFFER CLARITY — Is the price, deal, guarantee, or offer 100% clear with no ambiguity?
+4. CTA STRENGTH — Is the call to action direct, specific, and repeated? (Buy now, Book today, Get started, etc)
+5. PRODUCTION QUALITY — Is the quality high enough to justify the purchase decision being made right now?
+6. FUNNEL STAGE ACCURACY — Does this feel like a closing ad or does it still feel like it's building awareness or consideration?
+
+For anything missing, frame feedback as: "This is missing [X] which is critical at the bottom of the funnel. Make sure your retargeting sequence includes this — people at this stage need [reason] to finally commit. If this is your only touchpoint, add it here."`,
+        },
+      };
+
+      const stage = funnelCriteria[funnelStage] || funnelCriteria.top;
+
+      if (frames && frames.length > 0) {
+        frames.slice(0, 20).forEach(frame => {
+          messageContent.push({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: frame } });
+        });
+      }
+
+      const convAnalysisPrompt = `You are an expert paid media and conversion rate optimization analyst.
+
+FRAMES: You have ${Math.min(frames?.length || 0, 20)} frames from this business video/ad.
+${orientationContext}
+${audioContext}
+${pacingContext}
+
+FUNNEL STAGE: ${stage.label}
+
+${stage.criteria}
+
+Identify the TOP 5 most impactful issues based ONLY on the criteria above. Do not introduce criteria from other funnel stages.
+
+Also provide:
+- conversion_score: 0-100 how well optimized this is for conversions at this funnel stage
+- funnel_fit_score: 0-100 how well this content actually matches the stated funnel stage (is it doing the right job?)
+
+RESPOND WITH ONLY VALID JSON:
+{
+  "conversion_score": 68,
+  "funnel_fit_score": 74,
+  "issues": [
+    {
+      "rank": 1,
+      "category": "Hook Speed",
+      "importance": "Critical",
+      "icon": "🎯",
+      "what_is_wrong": "specific problem",
+      "why_it_matters": "why this hurts at this funnel stage",
+      "how_to_fix": "2-3 specific sentences with campaign-aware guidance"
+    }
+  ]
+}`;
+
+      const convContent = [...messageContent, { type: 'text', text: convAnalysisPrompt }];
+
+      const convCall1 = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({ model: 'claude-opus-4-6', max_tokens: 2000, messages: [{ role: 'user', content: convContent }] })
+      });
+
+      const convData1 = await convCall1.json();
+      if (!convCall1.ok) throw new Error(convData1.error?.message || 'API error');
+      const convText1 = convData1.content.map(i => i.text || '').join('');
+      const convParsed1 = JSON.parse(convText1.substring(convText1.indexOf('{'), convText1.lastIndexOf('}') + 1));
+
+      const convRecsPrompt = `You are HookD's business analyst. Write the final conversion report.
+
+Raw analysis:
+${JSON.stringify(convParsed1, null, 2)}
+
+Funnel stage: ${stage.label}
+
+For each of the 5 issues write:
+- title: short punchy title
+- psychFact: 2-3 sentences on why this matters specifically at the ${stage.label} stage — reference consumer psychology or conversion research
+- fix: EXACTLY 2-3 dummy-proof sentences. What's wrong, what to do, and if relevant — whether to fix it in this ad or cover it in another ad in the campaign sequence
+
+Keep conversion_score and funnel_fit_score. Add labels (Poor/Fair/Good/Strong).
+
+RESPOND WITH ONLY VALID JSON:
+{
+  "conversionScore": 68,
+  "conversionScoreLabel": "Fair",
+  "funnelFitScore": 74,
+  "funnelFitScoreLabel": "Good",
+  "findings": [
+    {
+      "rank": 1,
+      "importance": "Critical",
+      "category": "Hook Speed",
+      "icon": "🎯",
+      "title": "title",
+      "psychFact": "psychology specific to this funnel stage",
+      "fix": "2-3 dummy proof sentences with campaign-aware guidance"
+    }
+  ]
+}`;
+
+      const convCall2 = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({ model: 'claude-opus-4-6', max_tokens: 2000, messages: [{ role: 'user', content: convRecsPrompt }] })
+      });
+
+      const convData2 = await convCall2.json();
+      if (!convCall2.ok) throw new Error(convData2.error?.message || 'API error');
+      const convText2 = convData2.content.map(i => i.text || '').join('');
+      const convParsed2 = JSON.parse(convText2.substring(convText2.indexOf('{'), convText2.lastIndexOf('}') + 1));
+
+      return res.status(200).json(convParsed2);
+
     // ── REHOOK MODE ───────────────────────────────────────────
     } else if (analysisMode === 'rehook') {
       const prompt = `You are HookD's Re-Hook engine. Rewrite this hook 5 ways using proven psychological frameworks.

@@ -1,8 +1,7 @@
 import { useState, useRef } from 'react';
 import Head from 'next/head';
 
-// Extract frames — 1 per second up to 30
-async function extractFrames(file, maxFrames = 30) {
+async function extractFrames(file, maxFrames = 20) {
   return new Promise((resolve) => {
     const video = document.createElement('video');
     const canvas = document.createElement('canvas');
@@ -50,27 +49,24 @@ async function getVideoMetadata(file) {
   });
 }
 
-// Extract audio as base64 for AssemblyAI
 async function extractAudio(file) {
   try {
     const arrayBuffer = await file.arrayBuffer();
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     let audioBuffer;
-    try { audioBuffer = await audioCtx.decodeAudioData(arrayBuffer.slice(0)); } catch (e) { return { hasAudio: false, audioBase64: null }; }
+    try { audioBuffer = await audioCtx.decodeAudioData(arrayBuffer.slice(0)); } catch (e) { return { hasAudio: false }; }
     const channelData = audioBuffer.getChannelData(0);
     let maxAmp = 0;
     for (let i = 0; i < Math.min(channelData.length, 10000); i++) maxAmp = Math.max(maxAmp, Math.abs(channelData[i]));
-    if (maxAmp < 0.001) return { hasAudio: false, audioBase64: null };
-    // Convert to base64 for AssemblyAI
-    const uint8 = new Uint8Array(arrayBuffer);
-    const binary = uint8.reduce((acc, byte) => acc + String.fromCharCode(byte), '');
-    const audioBase64 = btoa(binary);
-    return { hasAudio: true, audioBase64 };
-  } catch (e) { return { hasAudio: false, audioBase64: null }; }
+    if (maxAmp < 0.001) return { hasAudio: false };
+    return { hasAudio: true };
+  } catch (e) { return { hasAudio: false }; }
 }
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState('analyze');
+  const [activeTab, setActiveTab] = useState('virality');
+
+  // Virality Score state
   const [videoFile, setVideoFile] = useState(null);
   const [videoUrl, setVideoUrl] = useState(null);
   const [platform, setPlatform] = useState('TikTok');
@@ -84,6 +80,18 @@ export default function Home() {
   const fileInputRef = useRef();
   const replaceInputRef = useRef();
 
+  // Conversion Score state
+  const [convFile, setConvFile] = useState(null);
+  const [convUrl, setConvUrl] = useState(null);
+  const [funnelStage, setFunnelStage] = useState('');
+  const [convLoading, setConvLoading] = useState(false);
+  const [convResults, setConvResults] = useState(null);
+  const [convError, setConvError] = useState(false);
+  const [convDragOver, setConvDragOver] = useState(false);
+  const convInputRef = useRef();
+  const convReplaceInputRef = useRef();
+
+  // Re-Hook state
   const [hookScript, setHookScript] = useState('');
   const [hookContext, setHookContext] = useState('');
   const [hookResults, setHookResults] = useState(null);
@@ -91,53 +99,71 @@ export default function Home() {
 
   const handleFile = (file) => {
     if (!file || !file.type.startsWith('video/')) return;
-    setVideoFile(file);
-    setVideoUrl(URL.createObjectURL(file));
-    setResults(null);
-    setError(false);
+    setVideoFile(file); setVideoUrl(URL.createObjectURL(file));
+    setResults(null); setError(false);
   };
 
-  const steps = ['Extracting frames...', 'Getting video info...', 'Transcribing audio...', 'Analyzing your content...', 'Writing recommendations...'];
+  const handleConvFile = (file) => {
+    if (!file || !file.type.startsWith('video/')) return;
+    setConvFile(file); setConvUrl(URL.createObjectURL(file));
+    setConvResults(null); setConvError(false);
+  };
+
+  const viralitySteps = ['Extracting frames...', 'Getting video info...', 'Checking audio...', 'Analyzing content...', 'Writing recommendations...'];
+  const convSteps = ['Extracting frames...', 'Getting video info...', 'Checking audio...', 'Analyzing funnel fit...', 'Writing recommendations...'];
 
   const analyzeVideo = async () => {
-    setLoading(true);
-    setError(false);
-    setLoadingStep(1);
-    setLoadingMsg(steps[0]);
+    setLoading(true); setError(false); setLoadingStep(1); setLoadingMsg(viralitySteps[0]);
     try {
       const frames = await extractFrames(videoFile, 20);
-      setLoadingStep(2); setLoadingMsg(steps[1]);
+      setLoadingStep(2); setLoadingMsg(viralitySteps[1]);
       const meta = await getVideoMetadata(videoFile);
-      setLoadingStep(3); setLoadingMsg(steps[2]);
+      setLoadingStep(3); setLoadingMsg(viralitySteps[2]);
       const { hasAudio } = await extractAudio(videoFile);
-      setLoadingStep(4); setLoadingMsg(steps[3]);
-
+      setLoadingStep(4); setLoadingMsg(viralitySteps[3]);
       const res = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          mode: 'analyze',
-          filename: videoFile?.name || 'video.mp4',
-          platform, contentType,
-          filesize: videoFile?.size || 0,
-          frames, hasAudio,
-          videoDuration: meta?.duration || 0,
-          videoWidth: meta?.width || 0,
-          videoHeight: meta?.height || 0,
-          isVertical: meta?.isVertical ?? true,
-          cutCount: 0
+          mode: 'analyze', filename: videoFile?.name || 'video.mp4',
+          platform, contentType, filesize: videoFile?.size || 0,
+          frames, hasAudio, videoDuration: meta?.duration || 0,
+          videoWidth: meta?.width || 0, videoHeight: meta?.height || 0,
+          isVertical: meta?.isVertical ?? true, cutCount: 0
         })
       });
-
-      setLoadingStep(5); setLoadingMsg(steps[4]);
+      setLoadingStep(5); setLoadingMsg(viralitySteps[4]);
       if (!res.ok) throw new Error('Analysis failed');
       setResults(await res.json());
-    } catch (err) {
-      console.error(err);
-      setError(true);
-    } finally {
-      setLoading(false); setLoadingStep(0); setLoadingMsg('');
-    }
+    } catch (err) { console.error(err); setError(true); }
+    finally { setLoading(false); setLoadingStep(0); setLoadingMsg(''); }
+  };
+
+  const analyzeConversion = async () => {
+    setConvLoading(true); setConvError(false); setLoadingStep(1); setLoadingMsg(convSteps[0]);
+    try {
+      const frames = await extractFrames(convFile, 20);
+      setLoadingStep(2); setLoadingMsg(convSteps[1]);
+      const meta = await getVideoMetadata(convFile);
+      setLoadingStep(3); setLoadingMsg(convSteps[2]);
+      const { hasAudio } = await extractAudio(convFile);
+      setLoadingStep(4); setLoadingMsg(convSteps[3]);
+      const res = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mode: 'conversion', filename: convFile?.name || 'video.mp4',
+          funnelStage, filesize: convFile?.size || 0,
+          frames, hasAudio, videoDuration: meta?.duration || 0,
+          videoWidth: meta?.width || 0, videoHeight: meta?.height || 0,
+          isVertical: meta?.isVertical ?? true,
+        })
+      });
+      setLoadingStep(5); setLoadingMsg(convSteps[4]);
+      if (!res.ok) throw new Error('Analysis failed');
+      setConvResults(await res.json());
+    } catch (err) { console.error(err); setConvError(true); }
+    finally { setConvLoading(false); setLoadingStep(0); setLoadingMsg(''); }
   };
 
   const reHook = async () => {
@@ -155,10 +181,8 @@ export default function Home() {
     finally { setHookLoading(false); }
   };
 
-  const resetAnalyze = () => {
-    setResults(null); setVideoFile(null); setVideoUrl(null);
-    setError(false); setContentType('');
-  };
+  const resetAnalyze = () => { setResults(null); setVideoFile(null); setVideoUrl(null); setError(false); setContentType(''); };
+  const resetConv = () => { setConvResults(null); setConvFile(null); setConvUrl(null); setConvError(false); setFunnelStage(''); };
 
   const ic = (imp) => {
     if (!imp) return '#888';
@@ -173,11 +197,17 @@ export default function Home() {
   const copy = (t) => navigator.clipboard.writeText(t);
 
   const contentTypes = [
-    { id: 'talking', emoji: '🗣️', label: 'Talking to Camera', desc: "You're speaking to the viewer — tutorials, advice, opinions, fitness tips, education, reviews" },
-    { id: 'footage', emoji: '🎬', label: 'Footage / Vlog', desc: 'Clips of things happening — day in the life, travel, room tours, behind the scenes, hauls' },
-    { id: 'skit', emoji: '😂', label: 'Skit / Comedy / Trends', desc: "You're performing — comedy bits, skits, trend participation, reactions, characters" },
-    { id: 'product', emoji: '🛍️', label: 'Product / Brand', desc: 'Promoting or showcasing something — ads, reviews, unboxings, business content' },
-    { id: 'aesthetic', emoji: '🎵', label: 'Aesthetic / Vibe', desc: 'Mood-driven content — music videos, artistic edits, fashion, visual storytelling with no talking' },
+    { id: 'talking', emoji: '🗣️', label: 'Talking to Camera', desc: "Tutorials, advice, opinions, fitness tips, education, reviews" },
+    { id: 'footage', emoji: '🎬', label: 'Footage / Vlog', desc: 'Day in the life, travel, room tours, behind the scenes, hauls' },
+    { id: 'skit', emoji: '😂', label: 'Skit / Comedy / Trends', desc: "Comedy bits, skits, trend participation, reactions, characters" },
+    { id: 'product', emoji: '🛍️', label: 'Product / Brand', desc: 'Ads, reviews, unboxings, business content' },
+    { id: 'aesthetic', emoji: '🎵', label: 'Aesthetic / Vibe', desc: 'Music videos, artistic edits, fashion, visual storytelling' },
+  ];
+
+  const funnelStages = [
+    { id: 'top', emoji: '📣', label: 'Top of Funnel', desc: 'Awareness — reaching new audiences who have never heard of you' },
+    { id: 'middle', emoji: '🤔', label: 'Middle of Funnel', desc: 'Consideration — nurturing people who know you but haven\'t bought yet' },
+    { id: 'bottom', emoji: '💰', label: 'Bottom of Funnel', desc: 'Conversion — closing people who are ready to buy or take action' },
   ];
 
   return (
@@ -195,13 +225,14 @@ export default function Home() {
 
       <div className="tabs-wrapper">
         <div className="tabs">
-          <button className={`tab ${activeTab === 'analyze' ? 'active' : ''}`} onClick={() => setActiveTab('analyze')}>🎬 Analyze</button>
+          <button className={`tab ${activeTab === 'virality' ? 'active' : ''}`} onClick={() => setActiveTab('virality')}>🔥 Virality Score</button>
+          <button className={`tab ${activeTab === 'conversion' ? 'active' : ''}`} onClick={() => setActiveTab('conversion')}>💰 Conversion Score</button>
           <button className={`tab ${activeTab === 'rehook' ? 'active' : ''}`} onClick={() => setActiveTab('rehook')}>🎣 Re-Hook Me</button>
         </div>
       </div>
 
-      {/* ANALYZE */}
-      {activeTab === 'analyze' && (
+      {/* VIRALITY SCORE */}
+      {activeTab === 'virality' && (
         <>
           {!results && !loading && !videoFile && (
             <section className="hero">
@@ -218,14 +249,14 @@ export default function Home() {
                 onDrop={(e) => { e.preventDefault(); setDragOver(false); handleFile(e.dataTransfer.files[0]); }}
                 onClick={() => fileInputRef.current.click()}>
                 <input ref={fileInputRef} type="file" accept="video/*" style={{ display: 'none' }} onChange={(e) => handleFile(e.target.files[0])} />
-                <div className="upload-icon">🎬</div>
+                <div className="upload-icon">🔥</div>
                 <h3>Drop your video here</h3>
                 <p>We analyze visuals, audio, and pacing. For real.</p>
                 <div className="file-types">{['MP4', 'MOV', 'AVI', 'WEBM'].map(t => <span key={t} className="file-tag">{t}</span>)}</div>
                 <div className="analysis-tags">
-                  <span className="atag">👁️ 30 Visual Frames</span>
-                  <span className="atag">🎵 Full Transcription</span>
-                  <span className="atag">📊 Sentiment Analysis</span>
+                  <span className="atag">👁️ 20 Visual Frames</span>
+                  <span className="atag">🎵 Audio Analysis</span>
+                  <span className="atag">📊 Two Scores</span>
                 </div>
               </div>
             )}
@@ -243,7 +274,6 @@ export default function Home() {
                     <input ref={replaceInputRef} type="file" accept="video/*" style={{ display: 'none' }} onChange={(e) => handleFile(e.target.files[0])} />
                   </div>
                 </div>
-
                 <div className="platform-select">
                   <h4>Content Type</h4>
                   <div className="content-type-grid">
@@ -255,7 +285,6 @@ export default function Home() {
                     ))}
                   </div>
                 </div>
-
                 <div className="platform-select" style={{ marginTop: 20 }}>
                   <h4>Target Platform</h4>
                   <div className="platform-options">
@@ -264,20 +293,19 @@ export default function Home() {
                     ))}
                   </div>
                 </div>
-
                 <button className="analyze-btn" onClick={analyzeVideo} disabled={!contentType}>
-                  {error ? 'Something went wrong — try again' : contentType ? 'Analyze My Video →' : 'Select a content type first'}
+                  {error ? 'Something went wrong — try again' : contentType ? 'Get My Virality Score →' : 'Select a content type first'}
                 </button>
               </>
             )}
 
-            {loading && (
+            {loading && activeTab === 'virality' && (
               <div className="loading-state">
                 <div className="loading-spinner" />
                 <h3>{loadingMsg || 'Analyzing...'}</h3>
                 <p>This can take up to a minute — hang tight, it's worth it.</p>
                 <div className="loading-steps">
-                  {steps.map((s, i) => (
+                  {viralitySteps.map((s, i) => (
                     <div key={i} className={`loading-step ${loadingStep === i + 1 ? 'active' : loadingStep > i + 1 ? 'done' : ''}`}>
                       <div className="step-dot" />{s}
                     </div>
@@ -290,13 +318,9 @@ export default function Home() {
           {results && (
             <section className="results-section">
               <div className="results-header">
-                <div>
-                  <h2>Your Content Report 📊</h2>
-                  <p style={{ color: '#888', fontSize: 14, marginTop: 4 }}>Platform: {platform} · {results.totalIssues || results.findings?.length} findings</p>
-                </div>
+                <h2>Your Virality Report 🔥</h2>
+                <p style={{ color: '#888', fontSize: 14, marginTop: 4 }}>Platform: {platform} · {results.totalIssues || results.findings?.length} findings</p>
               </div>
-
-              {/* Two scores */}
               <div className="scores-row">
                 <div className="score-card">
                   <div className="score-number" style={{ color: scoreColor(results.score) }}>{results.score}</div>
@@ -311,7 +335,6 @@ export default function Home() {
                   <div className="score-label-badge" style={{ background: scoreColor(results.followerScore) + '22', color: scoreColor(results.followerScore) }}>{results.followerScoreLabel}</div>
                 </div>
               </div>
-
               <div className="feedback-grid">
                 {results.findings?.map((f, i) => (
                   <div key={i} className="feedback-card">
@@ -330,19 +353,133 @@ export default function Home() {
                   </div>
                 ))}
               </div>
-
-              <div className="rehook-prompt">
-                <div className="rehook-prompt-icon">🎣</div>
-                <div>
-                  <div className="rehook-prompt-title">Want to fix your hook?</div>
-                  <div className="rehook-prompt-sub">Paste your script and we'll rewrite it 5 ways</div>
-                </div>
-                <button className="rehook-prompt-btn" onClick={() => setActiveTab('rehook')}>Re-Hook Me →</button>
-              </div>
-
               <div className="result-actions">
                 <button className="replace-result-btn" onClick={resetAnalyze}>↩ Try another video</button>
                 <button className="retry-btn" onClick={resetAnalyze}>+ New Analysis</button>
+              </div>
+            </section>
+          )}
+        </>
+      )}
+
+      {/* CONVERSION SCORE */}
+      {activeTab === 'conversion' && (
+        <>
+          {!convResults && !convLoading && !convFile && (
+            <section className="hero">
+              <div className="hero-eyebrow">AI-Powered Funnel Analysis</div>
+              <h1>Know exactly how well this <em>converts.</em></h1>
+              <p>Upload your ad or business video. Tell us where it sits in your funnel. We tell you exactly how optimized it is — and what's missing.</p>
+            </section>
+          )}
+          <section className="upload-section">
+            {!convFile && !convLoading && (
+              <div className={`upload-zone ${convDragOver ? 'drag-over' : ''}`}
+                onDragOver={(e) => { e.preventDefault(); setConvDragOver(true); }}
+                onDragLeave={() => setConvDragOver(false)}
+                onDrop={(e) => { e.preventDefault(); setConvDragOver(false); handleConvFile(e.dataTransfer.files[0]); }}
+                onClick={() => convInputRef.current.click()}>
+                <input ref={convInputRef} type="file" accept="video/*" style={{ display: 'none' }} onChange={(e) => handleConvFile(e.target.files[0])} />
+                <div className="upload-icon">💰</div>
+                <h3>Drop your ad or business video</h3>
+                <p>We analyze it against what actually drives conversions at your funnel stage.</p>
+                <div className="file-types">{['MP4', 'MOV', 'AVI', 'WEBM'].map(t => <span key={t} className="file-tag">{t}</span>)}</div>
+                <div className="analysis-tags">
+                  <span className="atag">📣 Top of Funnel</span>
+                  <span className="atag">🤔 Mid Funnel</span>
+                  <span className="atag">💰 Bottom of Funnel</span>
+                </div>
+              </div>
+            )}
+
+            {convFile && !convLoading && !convResults && (
+              <>
+                <div className="video-preview">
+                  <video src={convUrl} controls />
+                  <div className="video-info">
+                    <div>
+                      <div className="video-filename">{convFile.name}</div>
+                      <div className="video-size">{(convFile.size / 1024 / 1024).toFixed(1)} MB</div>
+                    </div>
+                    <button className="replace-btn" onClick={() => { setConvFile(null); setConvUrl(null); setConvResults(null); }}>↩ Replace</button>
+                  </div>
+                </div>
+                <div className="platform-select" style={{ marginTop: 20 }}>
+                  <h4>Where does this sit in your funnel?</h4>
+                  <div className="content-type-grid">
+                    {funnelStages.map(fs => (
+                      <button key={fs.id} className={`content-type-btn ${funnelStage === fs.id ? 'active' : ''}`} onClick={() => setFunnelStage(fs.id)}>
+                        <div className="ct-top"><span className="ct-emoji">{fs.emoji}</span><span className="ct-label">{fs.label}</span></div>
+                        <span className="ct-desc">{fs.desc}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <button className="analyze-btn" onClick={analyzeConversion} disabled={!funnelStage}>
+                  {convError ? 'Something went wrong — try again' : funnelStage ? 'Get My Conversion Score →' : 'Select your funnel stage first'}
+                </button>
+              </>
+            )}
+
+            {convLoading && (
+              <div className="loading-state">
+                <div className="loading-spinner" />
+                <h3>{loadingMsg || 'Analyzing...'}</h3>
+                <p>This can take up to a minute — hang tight, it's worth it.</p>
+                <div className="loading-steps">
+                  {convSteps.map((s, i) => (
+                    <div key={i} className={`loading-step ${loadingStep === i + 1 ? 'active' : loadingStep > i + 1 ? 'done' : ''}`}>
+                      <div className="step-dot" />{s}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </section>
+
+          {convResults && (
+            <section className="results-section">
+              <div className="results-header">
+                <h2>Your Conversion Report 💰</h2>
+                <p style={{ color: '#888', fontSize: 14, marginTop: 4 }}>
+                  {funnelStage === 'top' ? '📣 Top of Funnel' : funnelStage === 'middle' ? '🤔 Middle of Funnel' : '💰 Bottom of Funnel'} · {convResults.findings?.length} findings
+                </p>
+              </div>
+              <div className="scores-row">
+                <div className="score-card">
+                  <div className="score-number" style={{ color: scoreColor(convResults.conversionScore) }}>{convResults.conversionScore}</div>
+                  <div className="score-title">Conversion Score</div>
+                  <div className="score-subtitle">How optimized this is for your funnel stage</div>
+                  <div className="score-label-badge" style={{ background: scoreColor(convResults.conversionScore) + '22', color: scoreColor(convResults.conversionScore) }}>{convResults.conversionScoreLabel}</div>
+                </div>
+                <div className="score-card">
+                  <div className="score-number" style={{ color: scoreColor(convResults.funnelFitScore) }}>{convResults.funnelFitScore}</div>
+                  <div className="score-title">Funnel Fit Score</div>
+                  <div className="score-subtitle">How well this matches your stated funnel stage</div>
+                  <div className="score-label-badge" style={{ background: scoreColor(convResults.funnelFitScore) + '22', color: scoreColor(convResults.funnelFitScore) }}>{convResults.funnelFitScoreLabel}</div>
+                </div>
+              </div>
+              <div className="feedback-grid">
+                {convResults.findings?.map((f, i) => (
+                  <div key={i} className="feedback-card">
+                    <div className="card-header">
+                      <div className="card-icon-wrap" style={{ background: ic(f.importance) + '22' }}>
+                        <span style={{ fontSize: 20 }}>{f.icon || '⚠️'}</span>
+                      </div>
+                      <div className="card-title-group">
+                        <div className="card-category" style={{ color: ic(f.importance) }}>#{f.rank} — {f.importance}</div>
+                        <div className="card-title">{f.title}</div>
+                      </div>
+                    </div>
+                    <div className="psych-fact"><strong>Why it matters:</strong> {f.psychFact}</div>
+                    <div className="fix-label">→ WHAT TO DO</div>
+                    <div className="fix-text">{f.fix}</div>
+                  </div>
+                ))}
+              </div>
+              <div className="result-actions">
+                <button className="replace-result-btn" onClick={resetConv}>↩ Try another video</button>
+                <button className="retry-btn" onClick={resetConv}>+ New Analysis</button>
               </div>
             </section>
           )}
@@ -395,17 +532,17 @@ export default function Home() {
         </section>
       )}
 
-      {!results && !hookResults && activeTab === 'analyze' && !videoFile && !loading && (
+      {!results && !convResults && !hookResults && activeTab === 'virality' && !videoFile && !loading && (
         <section className="principles-strip">
           <h3>What we actually analyze</h3>
           <div className="principles-grid">
             {[
-              { icon: '👁️', name: '30 Visual Frames', desc: 'One frame per second so Claude sees your entire video like a flipbook — not just 5 snapshots.' },
-              { icon: '🎵', name: 'Full Transcription', desc: 'AssemblyAI transcribes every word, measures your pace in WPM, and counts filler words.' },
-              { icon: '📊', name: 'Sentiment Analysis', desc: 'We analyze the emotional arc of your speech — positive, negative, neutral — to see if it matches your content goal.' },
-              { icon: '📐', name: 'Exact Dimensions', desc: 'We read your actual video dimensions so we never wrongly suggest shooting vertical.' },
-              { icon: '🎯', name: 'Two Scores', desc: 'Scroll Score measures hook strength. Follower Score measures how likely viewers convert to followers.' },
-              { icon: '🏆', name: 'Ranked by Impact', desc: 'Top 5 findings ranked by importance so you always know exactly what to fix first.' },
+              { icon: '👁️', name: '20 Visual Frames', desc: 'Claude sees your entire video start to finish — not just a few snapshots.' },
+              { icon: '🎵', name: 'Audio Analysis', desc: 'We detect audio presence and use it to inform pacing and engagement feedback.' },
+              { icon: '🔥', name: 'Scroll Score', desc: 'How likely this stops the scroll based on hook, visuals, and pacing.' },
+              { icon: '👥', name: 'Follower Score', desc: 'How likely viewers convert to followers based on 7 psychological signals.' },
+              { icon: '🎯', name: 'Content-Specific', desc: '5 content types — feedback tailored to what actually matters for your style.' },
+              { icon: '🏆', name: 'Ranked by Impact', desc: 'Top 5 findings ranked so you always know exactly what to fix first.' },
             ].map((p, i) => (
               <div key={i} className="principle-item">
                 <div className="p-icon">{p.icon}</div>
@@ -507,11 +644,6 @@ export default function Home() {
         .psych-fact strong { color: #FAFAFA; font-weight: 600; }
         .fix-label { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: #00E87A; margin-bottom: 8px; }
         .fix-text { font-size: 14px; color: #FAFAFA; line-height: 1.8; background: rgba(0,232,122,0.06); border: 1px solid rgba(0,232,122,0.2); padding: 14px 16px; border-radius: 8px; }
-        .rehook-prompt { display: flex; align-items: center; gap: 16px; background: #141414; border: 1px solid #2A2A2A; border-radius: 14px; padding: 20px 24px; margin-top: 24px; flex-wrap: wrap; }
-        .rehook-prompt-icon { font-size: 28px; }
-        .rehook-prompt-title { font-family: 'Syne', sans-serif; font-size: 16px; font-weight: 700; }
-        .rehook-prompt-sub { font-size: 13px; color: #888; margin-top: 2px; }
-        .rehook-prompt-btn { margin-left: auto; background: #FF3B00; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-family: 'Syne', sans-serif; font-size: 14px; font-weight: 700; cursor: pointer; white-space: nowrap; }
         .result-actions { display: flex; gap: 12px; margin-top: 32px; }
         .replace-result-btn { flex: 1; padding: 16px; background: transparent; color: #888; border: 1px solid #2A2A2A; border-radius: 12px; font-family: 'Inter', sans-serif; font-size: 15px; font-weight: 500; cursor: pointer; }
         .replace-result-btn:hover { border-color: #FF3B00; color: #FF3B00; }
@@ -546,8 +678,6 @@ export default function Home() {
           .upload-zone { padding: 40px 20px; }
           .result-actions { flex-direction: column; }
           .tabs-wrapper { padding: 0 20px; }
-          .rehook-prompt { gap: 12px; }
-          .rehook-prompt-btn { width: 100%; }
           .scores-row { grid-template-columns: 1fr; }
         }
       `}</style>

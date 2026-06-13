@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
+import { useUser, UserButton, SignInButton, SignUpButton } from '@clerk/nextjs';
 
 async function extractFrames(file, maxFrames = 20) {
   return new Promise((resolve) => {
@@ -64,46 +65,17 @@ async function extractAudio(file) {
   } catch (e) { return { hasAudio: false }; }
 }
 
-const FREE_LIMIT = 3;
+const FREE_LIMIT = 5;
 
 export default function Home() {
   const router = useRouter();
+  const { isLoaded, isSignedIn, user } = useUser();
   const [activeTab, setActiveTab] = useState('virality');
 
-  // Free trial tracking
-  const [analysisCount, setAnalysisCount] = useState(0);
+  // Usage tracking
+  const [usageData, setUsageData] = useState(null);
   const [showPaywall, setShowPaywall] = useState(false);
-
-  useEffect(() => {
-    const count = parseInt(localStorage.getItem('hookd_analysis_count') || '0');
-    setAnalysisCount(count);
-    // Check for success return from Stripe
-    if (router.query.success) {
-      localStorage.setItem('hookd_subscribed', 'true');
-    }
-  }, [router.query]);
-
-  const isSubscribed = () => {
-    if (typeof window === 'undefined') return false;
-    return localStorage.getItem('hookd_subscribed') === 'true';
-  };
-
-  const incrementCount = () => {
-    const newCount = analysisCount + 1;
-    setAnalysisCount(newCount);
-    localStorage.setItem('hookd_analysis_count', newCount.toString());
-    return newCount;
-  };
-
-  const checkPaywall = () => {
-    if (isSubscribed()) return true;
-    const newCount = incrementCount();
-    if (newCount > FREE_LIMIT) {
-      setShowPaywall(true);
-      return false;
-    }
-    return true;
-  };
+  const [showAuthPrompt, setShowAuthPrompt] = useState(false);
 
   // Virality Score state
   const [videoFile, setVideoFile] = useState(null);
@@ -135,6 +107,32 @@ export default function Home() {
   const [hookResults, setHookResults] = useState(null);
   const [hookLoading, setHookLoading] = useState(false);
 
+  // Load usage data when signed in
+  useEffect(() => {
+    if (isSignedIn) {
+      fetch('/api/usage').then(r => r.json()).then(setUsageData).catch(console.error);
+    }
+    if (router.query.success) {
+      // Refresh usage after successful payment
+      fetch('/api/usage').then(r => r.json()).then(setUsageData);
+    }
+  }, [isSignedIn, router.query]);
+
+  const checkAndIncrementUsage = async () => {
+    if (!isSignedIn) {
+      setShowAuthPrompt(true);
+      return false;
+    }
+    const res = await fetch('/api/usage', { method: 'POST' });
+    const data = await res.json();
+    setUsageData(data);
+    if (!data.canAnalyze) {
+      setShowPaywall(true);
+      return false;
+    }
+    return true;
+  };
+
   const handleFile = (file) => {
     if (!file || !file.type.startsWith('video/')) return;
     setVideoFile(file); setVideoUrl(URL.createObjectURL(file));
@@ -151,7 +149,8 @@ export default function Home() {
   const convSteps = ['Extracting frames...', 'Getting video info...', 'Checking audio...', 'Analyzing funnel fit...', 'Writing recommendations...'];
 
   const analyzeVideo = async () => {
-    if (!checkPaywall()) return;
+    const canProceed = await checkAndIncrementUsage();
+    if (!canProceed) return;
     setLoading(true); setError(false); setLoadingStep(1); setLoadingMsg(viralitySteps[0]);
     try {
       const frames = await extractFrames(videoFile, 20);
@@ -179,7 +178,8 @@ export default function Home() {
   };
 
   const analyzeConversion = async () => {
-    if (!checkPaywall()) return;
+    const canProceed = await checkAndIncrementUsage();
+    if (!canProceed) return;
     setConvLoading(true); setConvError(false); setLoadingStep(1); setLoadingMsg(convSteps[0]);
     try {
       const frames = await extractFrames(convFile, 20);
@@ -208,6 +208,7 @@ export default function Home() {
 
   const reHook = async () => {
     if (!hookScript.trim()) return;
+    if (!isSignedIn) { setShowAuthPrompt(true); return; }
     setHookLoading(true); setHookResults(null);
     try {
       const res = await fetch('/api/analyze', {
@@ -236,7 +237,8 @@ export default function Home() {
   const scoreColor = (score) => score >= 75 ? '#00E87A' : score >= 63 ? '#FFD600' : score >= 50 ? '#FF8C00' : '#FF3B00';
   const copy = (t) => navigator.clipboard.writeText(t);
 
-  const analysesLeft = Math.max(0, FREE_LIMIT - analysisCount);
+  const remaining = usageData?.remaining ?? FREE_LIMIT;
+  const isSubscribed = usageData?.isSubscribed ?? false;
 
   const contentTypes = [
     { id: 'talking', emoji: '🗣️', label: 'Talking to Camera', desc: "Tutorials, advice, opinions, fitness tips, education, reviews" },
@@ -252,6 +254,13 @@ export default function Home() {
     { id: 'bottom', emoji: '💰', label: 'Bottom of Funnel', desc: 'Conversion — closing people who are ready to buy or take action' },
   ];
 
+  if (!isLoaded) return (
+    <div style={{ background: '#0A0A0A', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ width: 40, height: 40, border: '3px solid #2A2A2A', borderTopColor: '#FF3B00', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+    </div>
+  );
+
   return (
     <>
       <Head>
@@ -260,13 +269,35 @@ export default function Home() {
         <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
       </Head>
 
+      {/* Auth Prompt Modal */}
+      {showAuthPrompt && (
+        <div className="modal-overlay">
+          <div className="modal">
+            <div className="modal-emoji">🔥</div>
+            <h2>Create your free account</h2>
+            <p>Sign up to get 5 free analyses. No credit card required.</p>
+            <SignUpButton mode="modal" afterSignUpUrl="/">
+              <button className="modal-btn-primary" onClick={() => setShowAuthPrompt(false)}>
+                Create Free Account
+              </button>
+            </SignUpButton>
+            <SignInButton mode="modal" afterSignInUrl="/">
+              <button className="modal-btn-secondary" onClick={() => setShowAuthPrompt(false)}>
+                Already have an account? Sign in
+              </button>
+            </SignInButton>
+            <button className="modal-dismiss" onClick={() => setShowAuthPrompt(false)}>Maybe later</button>
+          </div>
+        </div>
+      )}
+
       {/* Paywall Modal */}
       {showPaywall && (
-        <div className="paywall-overlay">
-          <div className="paywall-modal">
-            <div className="paywall-emoji">🔥</div>
-            <h2>You've used your 3 free analyses</h2>
-            <p>You've seen what HookD can do. Now unlock unlimited access and start making content that actually performs.</p>
+        <div className="modal-overlay">
+          <div className="modal">
+            <div className="modal-emoji">🔥</div>
+            <h2>You've used all 5 free analyses</h2>
+            <p>You've seen what HookD can do. Unlock unlimited access and start making content that actually performs.</p>
             <div className="paywall-plans">
               <button className="paywall-plan" onClick={() => router.push('/pricing')}>
                 <div className="paywall-plan-name">Creator</div>
@@ -285,8 +316,8 @@ export default function Home() {
                 <div className="paywall-plan-desc">150 analyses/month</div>
               </button>
             </div>
-            <button className="paywall-cta" onClick={() => router.push('/pricing')}>See All Plans →</button>
-            <button className="paywall-dismiss" onClick={() => setShowPaywall(false)}>Maybe later</button>
+            <button className="modal-btn-primary" onClick={() => router.push('/pricing')}>See All Plans →</button>
+            <button className="modal-dismiss" onClick={() => setShowPaywall(false)}>Maybe later</button>
           </div>
         </div>
       )}
@@ -294,10 +325,26 @@ export default function Home() {
       <nav>
         <div className="logo">Hook<span>D</span></div>
         <div className="nav-right">
-          {!isSubscribed() && analysesLeft > 0 && (
-            <div className="free-badge">{analysesLeft} free {analysesLeft === 1 ? 'analysis' : 'analyses'} left</div>
+          {isSignedIn ? (
+            <>
+              {!isSubscribed && (
+                <div className="free-badge">
+                  {remaining > 0 ? `${remaining} free ${remaining === 1 ? 'analysis' : 'analyses'} left` : 'Free limit reached'}
+                </div>
+              )}
+              <a href="/pricing" className="nav-upgrade">Upgrade →</a>
+              <UserButton afterSignOutUrl="/" />
+            </>
+          ) : (
+            <>
+              <SignInButton mode="modal" afterSignInUrl="/">
+                <button className="nav-signin">Sign In</button>
+              </SignInButton>
+              <SignUpButton mode="modal" afterSignUpUrl="/">
+                <button className="nav-upgrade">Start Free →</button>
+              </SignUpButton>
+            </>
           )}
-          <a href="/pricing" className="nav-upgrade">Upgrade →</a>
         </div>
       </nav>
 
@@ -317,6 +364,11 @@ export default function Home() {
               <div className="hero-eyebrow">AI-Powered Content Analysis</div>
               <h1>Know exactly why they <em>stop</em> scrolling.</h1>
               <p>Upload your video. Get a complete performance report — what's working, what's killing your reach, and exactly how to fix it.</p>
+              {!isSignedIn && (
+                <SignUpButton mode="modal" afterSignUpUrl="/">
+                  <button className="hero-cta">Start Free — 5 Analyses →</button>
+                </SignUpButton>
+              )}
             </section>
           )}
           <section className="upload-section">
@@ -370,6 +422,9 @@ export default function Home() {
                     ))}
                   </div>
                 </div>
+                {!isSignedIn && remaining <= 2 && remaining > 0 && (
+                  <div className="usage-warning">{remaining} free {remaining === 1 ? 'analysis' : 'analyses'} left — <a href="/pricing">upgrade to keep going</a></div>
+                )}
                 <button className="analyze-btn" onClick={analyzeVideo} disabled={!contentType}>
                   {error ? 'Something went wrong — try again' : contentType ? 'Get My Virality Score →' : 'Select a content type first'}
                 </button>
@@ -643,9 +698,11 @@ export default function Home() {
         nav { display: flex; justify-content: space-between; align-items: center; padding: 20px 40px; border-bottom: 1px solid #2A2A2A; position: sticky; top: 0; background: rgba(10,10,10,0.95); backdrop-filter: blur(10px); z-index: 100; }
         .logo { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 22px; letter-spacing: -0.5px; }
         .logo span { color: #FF3B00; }
-        .nav-right { display: flex; align-items: center; gap: 16px; }
+        .nav-right { display: flex; align-items: center; gap: 12px; }
         .free-badge { background: rgba(255,59,0,0.1); border: 1px solid rgba(255,59,0,0.3); color: #FF3B00; font-size: 12px; font-weight: 600; padding: 4px 12px; border-radius: 20px; }
-        .nav-upgrade { background: #FF3B00; color: white; font-size: 13px; font-weight: 600; padding: 8px 16px; border-radius: 8px; text-decoration: none; transition: background 0.2s; }
+        .nav-signin { background: transparent; border: 1px solid #2A2A2A; color: #FAFAFA; font-size: 13px; font-weight: 600; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-family: 'Inter', sans-serif; transition: all 0.2s; }
+        .nav-signin:hover { border-color: #FF3B00; color: #FF3B00; }
+        .nav-upgrade { background: #FF3B00; color: white; font-size: 13px; font-weight: 600; padding: 8px 16px; border-radius: 8px; text-decoration: none; cursor: pointer; border: none; font-family: 'Inter', sans-serif; transition: background 0.2s; }
         .nav-upgrade:hover { background: #e03400; }
         .tabs-wrapper { border-bottom: 1px solid #2A2A2A; padding: 0 40px; background: #0A0A0A; position: sticky; top: 65px; z-index: 99; }
         .tabs { display: flex; gap: 4px; max-width: 760px; margin: 0 auto; overflow-x: auto; }
@@ -656,7 +713,9 @@ export default function Home() {
         .hero-eyebrow { font-size: 12px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: #FF3B00; margin-bottom: 24px; }
         .hero h1 { font-family: 'Syne', sans-serif; font-size: clamp(38px, 6vw, 68px); font-weight: 800; line-height: 1.05; letter-spacing: -2px; margin-bottom: 24px; }
         .hero h1 em { font-style: normal; color: #FF3B00; }
-        .hero p { font-size: 17px; color: #888; line-height: 1.7; max-width: 560px; margin: 0 auto; }
+        .hero p { font-size: 17px; color: #888; line-height: 1.7; max-width: 560px; margin: 0 auto 32px; }
+        .hero-cta { background: #FF3B00; color: white; border: none; padding: 16px 32px; border-radius: 10px; font-family: 'Syne', sans-serif; font-size: 18px; font-weight: 700; cursor: pointer; transition: background 0.2s; }
+        .hero-cta:hover { background: #e03400; }
         .upload-section { max-width: 760px; margin: 0 auto; padding: 0 40px 80px; }
         .tool-section { max-width: 760px; margin: 0 auto; padding: 40px 40px 80px; }
         .tool-hero { text-align: center; margin-bottom: 32px; }
@@ -694,6 +753,8 @@ export default function Home() {
         .ct-label { font-size: 14px; font-weight: 600; color: inherit; }
         .ct-desc { font-size: 12px; color: #666; line-height: 1.4; padding-left: 30px; }
         .content-type-btn.active .ct-desc { color: rgba(255,59,0,0.7); }
+        .usage-warning { background: rgba(255,59,0,0.08); border: 1px solid rgba(255,59,0,0.2); border-radius: 8px; padding: 10px 14px; font-size: 13px; color: #FF8C00; margin-top: 16px; }
+        .usage-warning a { color: #FF3B00; font-weight: 600; }
         .analyze-btn { display: block; width: 100%; margin-top: 20px; padding: 18px; background: #FF3B00; color: white; border: none; border-radius: 12px; font-family: 'Syne', sans-serif; font-size: 18px; font-weight: 700; cursor: pointer; transition: all 0.2s; }
         .analyze-btn:hover { background: #e03400; }
         .analyze-btn:disabled { background: #2A2A2A; color: #555; cursor: not-allowed; }
@@ -756,7 +817,7 @@ export default function Home() {
         .p-icon { font-size: 20px; margin-bottom: 8px; }
         .p-name { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
         .p-desc { font-size: 12px; color: #888; line-height: 1.5; }
-        footer { border-top: 1px solid #2A2A2A; padding: 24px 40px; display: flex; justify-content: space-between; align-items: center; max-width: 100%; }
+        footer { border-top: 1px solid #2A2A2A; padding: 24px 40px; display: flex; justify-content: space-between; align-items: center; }
         .footer-left { display: flex; align-items: center; gap: 16px; }
         .footer-logo { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 16px; }
         .footer-logo span { color: #FF3B00; }
@@ -764,23 +825,25 @@ export default function Home() {
         .footer-links { display: flex; gap: 20px; }
         .footer-links a { font-size: 13px; color: #888; text-decoration: none; transition: color 0.2s; }
         .footer-links a:hover { color: #FF3B00; }
-        .paywall-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 20px; backdrop-filter: blur(4px); }
-        .paywall-modal { background: #141414; border: 1px solid #2A2A2A; border-radius: 20px; padding: 40px; max-width: 560px; width: 100%; text-align: center; }
-        .paywall-emoji { font-size: 48px; margin-bottom: 16px; }
-        .paywall-modal h2 { font-family: 'Syne', sans-serif; font-size: 24px; font-weight: 800; margin-bottom: 12px; letter-spacing: -0.5px; }
-        .paywall-modal p { font-size: 14px; color: #888; line-height: 1.7; margin-bottom: 28px; }
-        .paywall-plans { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
-        .paywall-plan { background: #1E1E1E; border: 1px solid #2A2A2A; border-radius: 12px; padding: 16px 12px; cursor: pointer; transition: all 0.15s; position: relative; }
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 20px; backdrop-filter: blur(4px); }
+        .modal { background: #141414; border: 1px solid #2A2A2A; border-radius: 20px; padding: 40px; max-width: 480px; width: 100%; text-align: center; }
+        .modal-emoji { font-size: 48px; margin-bottom: 16px; }
+        .modal h2 { font-family: 'Syne', sans-serif; font-size: 24px; font-weight: 800; margin-bottom: 12px; letter-spacing: -0.5px; }
+        .modal p { font-size: 14px; color: #888; line-height: 1.7; margin-bottom: 28px; }
+        .modal-btn-primary { display: block; width: 100%; padding: 16px; background: #FF3B00; color: white; border: none; border-radius: 10px; font-family: 'Syne', sans-serif; font-size: 16px; font-weight: 700; cursor: pointer; margin-bottom: 12px; transition: background 0.2s; }
+        .modal-btn-primary:hover { background: #e03400; }
+        .modal-btn-secondary { display: block; width: 100%; padding: 14px; background: transparent; color: #888; border: 1px solid #2A2A2A; border-radius: 10px; font-family: 'Inter', sans-serif; font-size: 14px; cursor: pointer; margin-bottom: 12px; transition: all 0.2s; }
+        .modal-btn-secondary:hover { border-color: #FF3B00; color: #FAFAFA; }
+        .modal-dismiss { background: transparent; border: none; color: #555; font-size: 13px; cursor: pointer; font-family: 'Inter', sans-serif; }
+        .modal-dismiss:hover { color: #888; }
+        .paywall-plans { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px; }
+        .paywall-plan { background: #1E1E1E; border: 1px solid #2A2A2A; border-radius: 10px; padding: 14px 10px; cursor: pointer; transition: all 0.15s; position: relative; }
         .paywall-plan:hover { border-color: #FF3B00; }
         .paywall-plan.highlighted { border-color: #FF3B00; background: #1A0A0A; }
-        .paywall-popular { position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: #FF3B00; color: white; font-size: 9px; font-weight: 700; padding: 3px 10px; border-radius: 10px; white-space: nowrap; text-transform: uppercase; letter-spacing: 0.5px; }
-        .paywall-plan-name { font-family: 'Syne', sans-serif; font-size: 14px; font-weight: 700; margin-bottom: 6px; }
-        .paywall-plan-price { font-family: 'Syne', sans-serif; font-size: 20px; font-weight: 800; color: #FF3B00; margin-bottom: 4px; }
-        .paywall-plan-desc { font-size: 11px; color: #666; line-height: 1.3; }
-        .paywall-cta { display: block; width: 100%; padding: 16px; background: #FF3B00; color: white; border: none; border-radius: 10px; font-family: 'Syne', sans-serif; font-size: 16px; font-weight: 700; cursor: pointer; margin-bottom: 12px; transition: background 0.2s; }
-        .paywall-cta:hover { background: #e03400; }
-        .paywall-dismiss { background: transparent; border: none; color: #555; font-size: 13px; cursor: pointer; font-family: 'Inter', sans-serif; }
-        .paywall-dismiss:hover { color: #888; }
+        .paywall-popular { position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: #FF3B00; color: white; font-size: 9px; font-weight: 700; padding: 3px 10px; border-radius: 10px; white-space: nowrap; text-transform: uppercase; }
+        .paywall-plan-name { font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+        .paywall-plan-price { font-family: 'Syne', sans-serif; font-size: 18px; font-weight: 800; color: #FF3B00; margin-bottom: 4px; }
+        .paywall-plan-desc { font-size: 10px; color: #666; line-height: 1.3; }
         @media (max-width: 600px) {
           nav { padding: 16px 20px; }
           .hero { padding: 48px 20px 40px; }

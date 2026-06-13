@@ -1,5 +1,6 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import Head from 'next/head';
+import { useRouter } from 'next/router';
 
 async function extractFrames(file, maxFrames = 20) {
   return new Promise((resolve) => {
@@ -63,8 +64,46 @@ async function extractAudio(file) {
   } catch (e) { return { hasAudio: false }; }
 }
 
+const FREE_LIMIT = 3;
+
 export default function Home() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState('virality');
+
+  // Free trial tracking
+  const [analysisCount, setAnalysisCount] = useState(0);
+  const [showPaywall, setShowPaywall] = useState(false);
+
+  useEffect(() => {
+    const count = parseInt(localStorage.getItem('hookd_analysis_count') || '0');
+    setAnalysisCount(count);
+    // Check for success return from Stripe
+    if (router.query.success) {
+      localStorage.setItem('hookd_subscribed', 'true');
+    }
+  }, [router.query]);
+
+  const isSubscribed = () => {
+    if (typeof window === 'undefined') return false;
+    return localStorage.getItem('hookd_subscribed') === 'true';
+  };
+
+  const incrementCount = () => {
+    const newCount = analysisCount + 1;
+    setAnalysisCount(newCount);
+    localStorage.setItem('hookd_analysis_count', newCount.toString());
+    return newCount;
+  };
+
+  const checkPaywall = () => {
+    if (isSubscribed()) return true;
+    const newCount = incrementCount();
+    if (newCount > FREE_LIMIT) {
+      setShowPaywall(true);
+      return false;
+    }
+    return true;
+  };
 
   // Virality Score state
   const [videoFile, setVideoFile] = useState(null);
@@ -89,7 +128,6 @@ export default function Home() {
   const [convError, setConvError] = useState(false);
   const [convDragOver, setConvDragOver] = useState(false);
   const convInputRef = useRef();
-  const convReplaceInputRef = useRef();
 
   // Re-Hook state
   const [hookScript, setHookScript] = useState('');
@@ -113,6 +151,7 @@ export default function Home() {
   const convSteps = ['Extracting frames...', 'Getting video info...', 'Checking audio...', 'Analyzing funnel fit...', 'Writing recommendations...'];
 
   const analyzeVideo = async () => {
+    if (!checkPaywall()) return;
     setLoading(true); setError(false); setLoadingStep(1); setLoadingMsg(viralitySteps[0]);
     try {
       const frames = await extractFrames(videoFile, 20);
@@ -140,6 +179,7 @@ export default function Home() {
   };
 
   const analyzeConversion = async () => {
+    if (!checkPaywall()) return;
     setConvLoading(true); setConvError(false); setLoadingStep(1); setLoadingMsg(convSteps[0]);
     try {
       const frames = await extractFrames(convFile, 20);
@@ -196,6 +236,8 @@ export default function Home() {
   const scoreColor = (score) => score >= 75 ? '#00E87A' : score >= 63 ? '#FFD600' : score >= 50 ? '#FF8C00' : '#FF3B00';
   const copy = (t) => navigator.clipboard.writeText(t);
 
+  const analysesLeft = Math.max(0, FREE_LIMIT - analysisCount);
+
   const contentTypes = [
     { id: 'talking', emoji: '🗣️', label: 'Talking to Camera', desc: "Tutorials, advice, opinions, fitness tips, education, reviews" },
     { id: 'footage', emoji: '🎬', label: 'Footage / Vlog', desc: 'Day in the life, travel, room tours, behind the scenes, hauls' },
@@ -206,7 +248,7 @@ export default function Home() {
 
   const funnelStages = [
     { id: 'top', emoji: '📣', label: 'Top of Funnel', desc: 'Awareness — reaching new audiences who have never heard of you' },
-    { id: 'middle', emoji: '🤔', label: 'Middle of Funnel', desc: 'Consideration — nurturing people who know you but haven\'t bought yet' },
+    { id: 'middle', emoji: '🤔', label: 'Middle of Funnel', desc: "Consideration — nurturing people who know you but haven't bought yet" },
     { id: 'bottom', emoji: '💰', label: 'Bottom of Funnel', desc: 'Conversion — closing people who are ready to buy or take action' },
   ];
 
@@ -218,9 +260,45 @@ export default function Home() {
         <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
       </Head>
 
+      {/* Paywall Modal */}
+      {showPaywall && (
+        <div className="paywall-overlay">
+          <div className="paywall-modal">
+            <div className="paywall-emoji">🔥</div>
+            <h2>You've used your 3 free analyses</h2>
+            <p>You've seen what HookD can do. Now unlock unlimited access and start making content that actually performs.</p>
+            <div className="paywall-plans">
+              <button className="paywall-plan" onClick={() => router.push('/pricing')}>
+                <div className="paywall-plan-name">Creator</div>
+                <div className="paywall-plan-price">$29/mo</div>
+                <div className="paywall-plan-desc">20 analyses/month</div>
+              </button>
+              <button className="paywall-plan highlighted" onClick={() => router.push('/pricing')}>
+                <div className="paywall-popular">Most Popular</div>
+                <div className="paywall-plan-name">Pro</div>
+                <div className="paywall-plan-price">$79/mo</div>
+                <div className="paywall-plan-desc">50 analyses + Conversion Score</div>
+              </button>
+              <button className="paywall-plan" onClick={() => router.push('/pricing')}>
+                <div className="paywall-plan-name">Agency</div>
+                <div className="paywall-plan-price">$149/mo</div>
+                <div className="paywall-plan-desc">150 analyses/month</div>
+              </button>
+            </div>
+            <button className="paywall-cta" onClick={() => router.push('/pricing')}>See All Plans →</button>
+            <button className="paywall-dismiss" onClick={() => setShowPaywall(false)}>Maybe later</button>
+          </div>
+        </div>
+      )}
+
       <nav>
         <div className="logo">Hook<span>D</span></div>
-        <div className="nav-tag">Beta</div>
+        <div className="nav-right">
+          {!isSubscribed() && analysesLeft > 0 && (
+            <div className="free-badge">{analysesLeft} free {analysesLeft === 1 ? 'analysis' : 'analyses'} left</div>
+          )}
+          <a href="/pricing" className="nav-upgrade">Upgrade →</a>
+        </div>
       </nav>
 
       <div className="tabs-wrapper">
@@ -260,7 +338,6 @@ export default function Home() {
                 </div>
               </div>
             )}
-
             {videoFile && !loading && !results && (
               <>
                 <div className="video-preview">
@@ -298,8 +375,7 @@ export default function Home() {
                 </button>
               </>
             )}
-
-            {loading && activeTab === 'virality' && (
+            {loading && (
               <div className="loading-state">
                 <div className="loading-spinner" />
                 <h3>{loadingMsg || 'Analyzing...'}</h3>
@@ -314,12 +390,11 @@ export default function Home() {
               </div>
             )}
           </section>
-
           {results && (
             <section className="results-section">
               <div className="results-header">
                 <h2>Your Virality Report 🔥</h2>
-                <p style={{ color: '#888', fontSize: 14, marginTop: 4 }}>Platform: {platform} · {results.totalIssues || results.findings?.length} findings</p>
+                <p style={{ color: '#888', fontSize: 14, marginTop: 4 }}>Platform: {platform} · {results.findings?.length} findings</p>
               </div>
               <div className="scores-row">
                 <div className="score-card">
@@ -391,7 +466,6 @@ export default function Home() {
                 </div>
               </div>
             )}
-
             {convFile && !convLoading && !convResults && (
               <>
                 <div className="video-preview">
@@ -420,7 +494,6 @@ export default function Home() {
                 </button>
               </>
             )}
-
             {convLoading && (
               <div className="loading-state">
                 <div className="loading-spinner" />
@@ -436,7 +509,6 @@ export default function Home() {
               </div>
             )}
           </section>
-
           {convResults && (
             <section className="results-section">
               <div className="results-header">
@@ -455,7 +527,7 @@ export default function Home() {
                 <div className="score-card">
                   <div className="score-number" style={{ color: scoreColor(convResults.funnelFitScore) }}>{convResults.funnelFitScore}</div>
                   <div className="score-title">Funnel Fit Score</div>
-                  <div className="score-subtitle">How well this matches your stated funnel stage</div>
+                  <div className="score-subtitle">How well this matches your funnel stage</div>
                   <div className="score-label-badge" style={{ background: scoreColor(convResults.funnelFitScore) + '22', color: scoreColor(convResults.funnelFitScore) }}>{convResults.funnelFitScoreLabel}</div>
                 </div>
               </div>
@@ -541,7 +613,7 @@ export default function Home() {
               { icon: '🎵', name: 'Audio Analysis', desc: 'We detect audio presence and use it to inform pacing and engagement feedback.' },
               { icon: '🔥', name: 'Scroll Score', desc: 'How likely this stops the scroll based on hook, visuals, and pacing.' },
               { icon: '👥', name: 'Follower Score', desc: 'How likely viewers convert to followers based on 7 psychological signals.' },
-              { icon: '🎯', name: 'Content-Specific', desc: '5 content types — feedback tailored to what actually matters for your style.' },
+              { icon: '💰', name: 'Conversion Score', desc: 'How well your ad is optimized for its specific funnel stage.' },
               { icon: '🏆', name: 'Ranked by Impact', desc: 'Top 5 findings ranked so you always know exactly what to fix first.' },
             ].map((p, i) => (
               <div key={i} className="principle-item">
@@ -554,13 +626,27 @@ export default function Home() {
         </section>
       )}
 
+      <footer>
+        <div className="footer-left">
+          <span className="footer-logo">Hook<span>D</span></span>
+          <span className="footer-copy">© 2026 HookD. All rights reserved.</span>
+        </div>
+        <div className="footer-links">
+          <a href="/pricing">Pricing</a>
+          <a href="/affiliates">Affiliates</a>
+        </div>
+      </footer>
+
       <style jsx global>{`
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { background: #0A0A0A; color: #FAFAFA; font-family: 'Inter', sans-serif; min-height: 100vh; overflow-x: hidden; }
         nav { display: flex; justify-content: space-between; align-items: center; padding: 20px 40px; border-bottom: 1px solid #2A2A2A; position: sticky; top: 0; background: rgba(10,10,10,0.95); backdrop-filter: blur(10px); z-index: 100; }
         .logo { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 22px; letter-spacing: -0.5px; }
         .logo span { color: #FF3B00; }
-        .nav-tag { background: #FF3B00; color: #fff; font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 20px; letter-spacing: 0.5px; text-transform: uppercase; }
+        .nav-right { display: flex; align-items: center; gap: 16px; }
+        .free-badge { background: rgba(255,59,0,0.1); border: 1px solid rgba(255,59,0,0.3); color: #FF3B00; font-size: 12px; font-weight: 600; padding: 4px 12px; border-radius: 20px; }
+        .nav-upgrade { background: #FF3B00; color: white; font-size: 13px; font-weight: 600; padding: 8px 16px; border-radius: 8px; text-decoration: none; transition: background 0.2s; }
+        .nav-upgrade:hover { background: #e03400; }
         .tabs-wrapper { border-bottom: 1px solid #2A2A2A; padding: 0 40px; background: #0A0A0A; position: sticky; top: 65px; z-index: 99; }
         .tabs { display: flex; gap: 4px; max-width: 760px; margin: 0 auto; overflow-x: auto; }
         .tab { background: transparent; border: none; color: #888; font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 500; padding: 16px 20px; cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.15s; white-space: nowrap; }
@@ -670,6 +756,31 @@ export default function Home() {
         .p-icon { font-size: 20px; margin-bottom: 8px; }
         .p-name { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
         .p-desc { font-size: 12px; color: #888; line-height: 1.5; }
+        footer { border-top: 1px solid #2A2A2A; padding: 24px 40px; display: flex; justify-content: space-between; align-items: center; max-width: 100%; }
+        .footer-left { display: flex; align-items: center; gap: 16px; }
+        .footer-logo { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 16px; }
+        .footer-logo span { color: #FF3B00; }
+        .footer-copy { font-size: 12px; color: #555; }
+        .footer-links { display: flex; gap: 20px; }
+        .footer-links a { font-size: 13px; color: #888; text-decoration: none; transition: color 0.2s; }
+        .footer-links a:hover { color: #FF3B00; }
+        .paywall-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 20px; backdrop-filter: blur(4px); }
+        .paywall-modal { background: #141414; border: 1px solid #2A2A2A; border-radius: 20px; padding: 40px; max-width: 560px; width: 100%; text-align: center; }
+        .paywall-emoji { font-size: 48px; margin-bottom: 16px; }
+        .paywall-modal h2 { font-family: 'Syne', sans-serif; font-size: 24px; font-weight: 800; margin-bottom: 12px; letter-spacing: -0.5px; }
+        .paywall-modal p { font-size: 14px; color: #888; line-height: 1.7; margin-bottom: 28px; }
+        .paywall-plans { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
+        .paywall-plan { background: #1E1E1E; border: 1px solid #2A2A2A; border-radius: 12px; padding: 16px 12px; cursor: pointer; transition: all 0.15s; position: relative; }
+        .paywall-plan:hover { border-color: #FF3B00; }
+        .paywall-plan.highlighted { border-color: #FF3B00; background: #1A0A0A; }
+        .paywall-popular { position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: #FF3B00; color: white; font-size: 9px; font-weight: 700; padding: 3px 10px; border-radius: 10px; white-space: nowrap; text-transform: uppercase; letter-spacing: 0.5px; }
+        .paywall-plan-name { font-family: 'Syne', sans-serif; font-size: 14px; font-weight: 700; margin-bottom: 6px; }
+        .paywall-plan-price { font-family: 'Syne', sans-serif; font-size: 20px; font-weight: 800; color: #FF3B00; margin-bottom: 4px; }
+        .paywall-plan-desc { font-size: 11px; color: #666; line-height: 1.3; }
+        .paywall-cta { display: block; width: 100%; padding: 16px; background: #FF3B00; color: white; border: none; border-radius: 10px; font-family: 'Syne', sans-serif; font-size: 16px; font-weight: 700; cursor: pointer; margin-bottom: 12px; transition: background 0.2s; }
+        .paywall-cta:hover { background: #e03400; }
+        .paywall-dismiss { background: transparent; border: none; color: #555; font-size: 13px; cursor: pointer; font-family: 'Inter', sans-serif; }
+        .paywall-dismiss:hover { color: #888; }
         @media (max-width: 600px) {
           nav { padding: 16px 20px; }
           .hero { padding: 48px 20px 40px; }
@@ -679,6 +790,8 @@ export default function Home() {
           .result-actions { flex-direction: column; }
           .tabs-wrapper { padding: 0 20px; }
           .scores-row { grid-template-columns: 1fr; }
+          .paywall-plans { grid-template-columns: 1fr; }
+          footer { flex-direction: column; gap: 16px; padding: 20px; text-align: center; }
         }
       `}</style>
     </>

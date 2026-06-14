@@ -6,7 +6,7 @@ const plans = [
   {
     id: 'creator',
     name: 'Creator',
-    price: 29,
+    price: 14.99,
     priceId: 'price_1ThopBKHHjJwCkb0ClazXGvV',
     emoji: '🔥',
     description: 'For individual creators serious about growth',
@@ -23,7 +23,7 @@ const plans = [
   {
     id: 'pro',
     name: 'Pro',
-    price: 79,
+    price: 49.99,
     priceId: 'price_1ThorgKHHjJwCkb0y5ZZDr0K',
     emoji: '💰',
     description: 'For creators and businesses who need conversion insights',
@@ -41,7 +41,7 @@ const plans = [
   {
     id: 'agency',
     name: 'Agency',
-    price: 149,
+    price: 99.99,
     priceId: 'price_1ThotBKHHjJwCkb02iwgGEai',
     emoji: '🏢',
     description: 'For agencies and teams managing multiple clients',

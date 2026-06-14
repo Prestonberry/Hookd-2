@@ -65,7 +65,7 @@ async function extractAudio(file) {
   } catch (e) { return { hasAudio: false }; }
 }
 
-const FREE_LIMIT = 5;
+const FREE_LIMIT = 3;
 
 export default function Home() {
   const router = useRouter();
@@ -112,9 +112,13 @@ export default function Home() {
     }
   }, [isSignedIn, router.query]);
 
-  const checkAndIncrementUsage = async () => {
+  const checkAndIncrementUsage = async (mode) => {
     if (!isSignedIn) { setShowAuthPrompt(true); return false; }
-    const res = await fetch('/api/usage', { method: 'POST' });
+    const res = await fetch('/api/usage', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode }),
+    });
     const data = await res.json();
     setUsageData(data);
     if (!data.canAnalyze) { setShowPaywall(true); return false; }
@@ -139,7 +143,7 @@ export default function Home() {
   const convSteps = ['Extracting frames...', 'Getting video info...', 'Checking audio...', 'Analyzing funnel fit...', 'Writing recommendations...'];
 
   const analyzeVideo = async () => {
-    const canProceed = await checkAndIncrementUsage();
+    const canProceed = await checkAndIncrementUsage('analyze');
     if (!canProceed) return;
     setLoading(true); setError(false); setLoadingStep(1); setLoadingMsg(viralitySteps[0]);
     try {
@@ -168,7 +172,7 @@ export default function Home() {
   };
 
   const analyzeConversion = async () => {
-    const canProceed = await checkAndIncrementUsage();
+    const canProceed = await checkAndIncrementUsage('conversion');
     if (!canProceed) return;
     setConvLoading(true); setConvError(false); setLoadingStep(1); setLoadingMsg(convSteps[0]);
     try {
@@ -199,6 +203,8 @@ export default function Home() {
   const reHook = async () => {
     if (!hookScript.trim()) return;
     if (!isSignedIn) { setShowAuthPrompt(true); return; }
+    const canProceed = await checkAndIncrementUsage('rehook');
+    if (!canProceed) return;
     setHookLoading(true); setHookResults(null);
     try {
       const res = await fetch('/api/analyze', {
@@ -227,7 +233,7 @@ export default function Home() {
   const scoreColor = (score) => score >= 75 ? '#00E87A' : score >= 63 ? '#FFD600' : score >= 50 ? '#FF8C00' : '#FF3B00';
   const copy = (t) => navigator.clipboard.writeText(t);
 
-  const remaining = usageData?.remaining ?? FREE_LIMIT;
+  const remaining = usageData?.freeRemaining ?? FREE_LIMIT;
   const isSubscribed = usageData?.isSubscribed ?? false;
 
   const contentTypes = [
@@ -263,7 +269,7 @@ export default function Home() {
         <div className="modal-overlay">
           <div className="modal">
             <h2>Create your free account</h2>
-            <p>Sign up to get 5 free analyses. No credit card required.</p>
+            <p>Sign up to get 3 free analyses. No credit card required.</p>
             <SignUpButton mode="modal" afterSignUpUrl="/">
               <button className="modal-btn-primary" onClick={() => setShowAuthPrompt(false)}>Create Free Account</button>
             </SignUpButton>
@@ -278,8 +284,8 @@ export default function Home() {
       {showPaywall && (
         <div className="modal-overlay">
           <div className="modal">
-            <h2>You've used all 5 free analyses</h2>
-            <p>Unlock unlimited access and start making content that actually performs.</p>
+            <h2>You've hit your limit</h2>
+            <p>Upgrade to keep analyzing and making content that performs.</p>
             <div className="paywall-plans">
               <button className="paywall-plan" onClick={() => router.push('/pricing')}>
                 <div className="paywall-plan-name">Creator</div>
@@ -347,7 +353,7 @@ export default function Home() {
               <p>Upload your video. Get a complete performance report — what's working, what's killing your reach, and exactly how to fix it.</p>
               {!isSignedIn && (
                 <SignUpButton mode="modal" afterSignUpUrl="/">
-                  <button className="hero-cta">Start Free — 5 Analyses</button>
+                  <button className="hero-cta">Start Free — 3 Analyses</button>
                 </SignUpButton>
               )}
             </section>

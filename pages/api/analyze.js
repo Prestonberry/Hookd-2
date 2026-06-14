@@ -15,7 +15,7 @@ export default async function handler(req, res) {
     filename, platform, filesize, mode, script,
     frames, hasAudio, videoDuration, cutCount,
     videoWidth, videoHeight, isVertical, contentType, hookContext,
-    transcript, wpm, fillerCount, dominantSentiment
+    hookType, transcript, wpm, fillerCount, dominantSentiment
   } = req.body;
 
   const analysisMode = mode || 'analyze';
@@ -58,14 +58,12 @@ export default async function handler(req, res) {
     if (analysisMode === 'analyze') {
 
       if (frames && frames.length > 0) {
-        // Send max 20 frames to stay within token limits
         const frameSubset = frames.slice(0, 20);
         frameSubset.forEach(frame => {
           messageContent.push({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: frame } });
         });
       }
 
-      // CALL 1: Raw analysis
       const analysisPrompt = `You are an expert content analyst. Analyze this video data and identify the most impactful issues.
 
 FRAMES: You have ${Math.min(frames?.length || 0, 20)} frames from this video. Look carefully at text overlays, faces, backgrounds, lighting, framing, colors.
@@ -90,7 +88,6 @@ RESPOND WITH ONLY VALID JSON:
       "rank": 1,
       "category": "Hook",
       "importance": "Critical",
-      "icon": "🎯",
       "what_is_wrong": "specific problem",
       "why_it_matters": "psychology",
       "how_to_fix": "2-3 sentences"
@@ -102,16 +99,8 @@ RESPOND WITH ONLY VALID JSON:
 
       const call1 = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': process.env.ANTHROPIC_API_KEY,
-          'anthropic-version': '2023-06-01'
-        },
-        body: JSON.stringify({
-          model: 'claude-opus-4-6',
-          max_tokens: 2000,
-          messages: [{ role: 'user', content: analysisContent }]
-        })
+        headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({ model: 'claude-opus-4-6', max_tokens: 2000, messages: [{ role: 'user', content: analysisContent }] })
       });
 
       const data1 = await call1.json();
@@ -119,20 +108,19 @@ RESPOND WITH ONLY VALID JSON:
       const text1 = data1.content.map(i => i.text || '').join('');
       const parsed1 = JSON.parse(text1.substring(text1.indexOf('{'), text1.lastIndexOf('}') + 1));
 
-      // CALL 2: Write final recommendations (no images needed)
-      const recommendationsPrompt = `You are HookD — a brutally honest but genuinely helpful content strategist.
+      const recommendationsPrompt = `You are HookD — a direct, no-nonsense content strategist.
 
 Here is a raw analysis of a creator's video:
 ${JSON.stringify(parsed1, null, 2)}
 
 Write the final output. For each of the 5 issues:
-- title: short punchy title
-- psychFact: behavioral science explanation (2-3 sentences)
-- fix: EXACTLY 2-3 dummy-proof sentences. Precisely what is wrong and exactly what to change.
+- title: short punchy title (no emojis)
+- psychFact: behavioral science explanation (2-3 sentences, no emojis)
+- fix: EXACTLY 2-3 dummy-proof sentences. Precisely what is wrong and exactly what to change. No emojis.
 
 Keep scroll_score and follower_score. Add scoreLabel and followerScoreLabel (Poor/Fair/Good/Strong).
 
-RESPOND WITH ONLY VALID JSON:
+RESPOND WITH ONLY VALID JSON — NO EMOJIS ANYWHERE:
 {
   "score": 72,
   "scoreLabel": "Good",
@@ -144,9 +132,8 @@ RESPOND WITH ONLY VALID JSON:
       "rank": 1,
       "importance": "Critical",
       "category": "Hook",
-      "icon": "🎯",
-      "title": "title",
-      "psychFact": "psychology",
+      "title": "title here",
+      "psychFact": "psychology here",
       "fix": "2-3 dummy proof sentences"
     }
   ]
@@ -154,16 +141,8 @@ RESPOND WITH ONLY VALID JSON:
 
       const call2 = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': process.env.ANTHROPIC_API_KEY,
-          'anthropic-version': '2023-06-01'
-        },
-        body: JSON.stringify({
-          model: 'claude-opus-4-6',
-          max_tokens: 2000,
-          messages: [{ role: 'user', content: recommendationsPrompt }]
-        })
+        headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({ model: 'claude-opus-4-6', max_tokens: 2000, messages: [{ role: 'user', content: recommendationsPrompt }] })
       });
 
       const data2 = await call2.json();
@@ -236,13 +215,13 @@ FUNNEL STAGE: ${stage.label}
 
 ${stage.criteria}
 
-Identify the TOP 5 most impactful issues based ONLY on the criteria above. Do not introduce criteria from other funnel stages.
+Identify the TOP 5 most impactful issues. Do not use emojis anywhere.
 
 Also provide:
-- conversion_score: 0-100 how well optimized this is for conversions at this funnel stage
-- funnel_fit_score: 0-100 how well this content actually matches the stated funnel stage (is it doing the right job?)
+- conversion_score: 0-100
+- funnel_fit_score: 0-100
 
-RESPOND WITH ONLY VALID JSON:
+RESPOND WITH ONLY VALID JSON — NO EMOJIS:
 {
   "conversion_score": 68,
   "funnel_fit_score": 74,
@@ -251,7 +230,6 @@ RESPOND WITH ONLY VALID JSON:
       "rank": 1,
       "category": "Hook Speed",
       "importance": "Critical",
-      "icon": "🎯",
       "what_is_wrong": "specific problem",
       "why_it_matters": "why this hurts at this funnel stage",
       "how_to_fix": "2-3 specific sentences with campaign-aware guidance"
@@ -272,7 +250,7 @@ RESPOND WITH ONLY VALID JSON:
       const convText1 = convData1.content.map(i => i.text || '').join('');
       const convParsed1 = JSON.parse(convText1.substring(convText1.indexOf('{'), convText1.lastIndexOf('}') + 1));
 
-      const convRecsPrompt = `You are HookD's business analyst. Write the final conversion report.
+      const convRecsPrompt = `You are HookD's business analyst. Write the final conversion report. No emojis anywhere.
 
 Raw analysis:
 ${JSON.stringify(convParsed1, null, 2)}
@@ -280,13 +258,13 @@ ${JSON.stringify(convParsed1, null, 2)}
 Funnel stage: ${stage.label}
 
 For each of the 5 issues write:
-- title: short punchy title
-- psychFact: 2-3 sentences on why this matters specifically at the ${stage.label} stage — reference consumer psychology or conversion research
-- fix: EXACTLY 2-3 dummy-proof sentences. What's wrong, what to do, and if relevant — whether to fix it in this ad or cover it in another ad in the campaign sequence
+- title: short punchy title (no emojis)
+- psychFact: 2-3 sentences on why this matters at this funnel stage
+- fix: EXACTLY 2-3 dummy-proof sentences with campaign-aware guidance
 
 Keep conversion_score and funnel_fit_score. Add labels (Poor/Fair/Good/Strong).
 
-RESPOND WITH ONLY VALID JSON:
+RESPOND WITH ONLY VALID JSON — NO EMOJIS:
 {
   "conversionScore": 68,
   "conversionScoreLabel": "Fair",
@@ -297,10 +275,9 @@ RESPOND WITH ONLY VALID JSON:
       "rank": 1,
       "importance": "Critical",
       "category": "Hook Speed",
-      "icon": "🎯",
       "title": "title",
-      "psychFact": "psychology specific to this funnel stage",
-      "fix": "2-3 dummy proof sentences with campaign-aware guidance"
+      "psychFact": "psychology",
+      "fix": "2-3 dummy proof sentences"
     }
   ]
 }`;
@@ -320,27 +297,67 @@ RESPOND WITH ONLY VALID JSON:
 
     // ── REHOOK MODE ───────────────────────────────────────────
     } else if (analysisMode === 'rehook') {
-      const prompt = `You are HookD's Re-Hook engine. Rewrite this hook 5 ways using proven psychological frameworks.
-Original: "${script || ''}"
-Platform: "${platform || 'TikTok'}"
-CRITICAL: Preserve the creator's exact message. Only change HOW they say it.
-${hookContext ? `CREATOR CONTEXT: "${hookContext}"` : ''}
+      const isTyped = hookType === 'typed';
 
-RESPOND WITH ONLY VALID JSON:
-{"original":"${(script||'').replace(/"/g,"'")}","hooks":[{"style":"Curiosity Gap","emoji":"🧠","hook":"hook","why":"reason","spokenDuration":"2s"},{"style":"Controversy","emoji":"🔥","hook":"hook","why":"reason","spokenDuration":"2s"},{"style":"Relatability","emoji":"😭","hook":"hook","why":"reason","spokenDuration":"2s"},{"style":"Shock Stat","emoji":"📊","hook":"hook","why":"reason","spokenDuration":"2s"},{"style":"Story Open","emoji":"🎬","hook":"hook","why":"reason","spokenDuration":"2s"}]}`;
+      const talkingPrompt = `You are HookD's Re-Hook engine. Rewrite this TALKING hook 5 ways.
+
+A talking hook is the opening spoken line of a video where the creator speaks directly to camera. Rewrites should:
+- Sound natural when spoken out loud
+- Spark immediate curiosity or emotional pull within the first 1-2 sentences
+- Be balanced — not too long, not too short. 1-2 sentences max.
+- Use frameworks: curiosity gap, pattern interrupt, relatability, controversy, story open
+- Preserve the creator's exact message and argument
+
+Original hook: "${script || ''}"
+Platform: "${platform || 'TikTok'}"
+${hookContext ? `Context about the video: "${hookContext}"` : ''}
+
+RESPOND WITH ONLY VALID JSON — NO EMOJIS:
+{
+  "original": "${(script||'').replace(/"/g,"'")}",
+  "hookType": "talking",
+  "hooks": [
+    {"style": "Curiosity Gap", "hook": "rewritten hook here", "why": "why this works for a talking hook", "duration": "~3s"},
+    {"style": "Pattern Interrupt", "hook": "rewritten hook here", "why": "why this works for a talking hook", "duration": "~4s"},
+    {"style": "Relatability", "hook": "rewritten hook here", "why": "why this works for a talking hook", "duration": "~3s"},
+    {"style": "Controversy", "hook": "rewritten hook here", "why": "why this works for a talking hook", "duration": "~4s"},
+    {"style": "Story Open", "hook": "rewritten hook here", "why": "why this works for a talking hook", "duration": "~5s"}
+  ]
+}`;
+
+      const typedPrompt = `You are HookD's Re-Hook engine. Rewrite this TYPED hook 5 ways.
+
+A typed hook is on-screen text that appears over a trending, music, or aesthetic video — the viewer reads it while watching. Rewrites should:
+- Be SHORT and punchy — 3-8 words maximum
+- Hit hard within the first 2-3 words to stop the scroll
+- Spark immediate emotion: shock, curiosity, FOMO, relatability, or intrigue
+- Work as standalone text without needing audio
+- The first few words must be powerful enough to make someone pause
+- Preserve the creator's core message
+
+Original hook: "${script || ''}"
+Platform: "${platform || 'TikTok'}"
+${hookContext ? `Context about the video: "${hookContext}"` : ''}
+
+RESPOND WITH ONLY VALID JSON — NO EMOJIS:
+{
+  "original": "${(script||'').replace(/"/g,"'")}",
+  "hookType": "typed",
+  "hooks": [
+    {"style": "Shock Open", "hook": "3-8 word typed hook", "why": "why the first words stop the scroll", "wordCount": "5 words"},
+    {"style": "FOMO", "hook": "3-8 word typed hook", "why": "why the first words stop the scroll", "wordCount": "4 words"},
+    {"style": "Relatability", "hook": "3-8 word typed hook", "why": "why the first words stop the scroll", "wordCount": "6 words"},
+    {"style": "Curiosity Gap", "hook": "3-8 word typed hook", "why": "why the first words stop the scroll", "wordCount": "5 words"},
+    {"style": "Controversy", "hook": "3-8 word typed hook", "why": "why the first words stop the scroll", "wordCount": "4 words"}
+  ]
+}`;
+
+      const prompt = isTyped ? typedPrompt : talkingPrompt;
 
       const response = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': process.env.ANTHROPIC_API_KEY,
-          'anthropic-version': '2023-06-01'
-        },
-        body: JSON.stringify({
-          model: 'claude-opus-4-6',
-          max_tokens: 2000,
-          messages: [{ role: 'user', content: prompt }]
-        })
+        headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({ model: 'claude-opus-4-6', max_tokens: 2000, messages: [{ role: 'user', content: prompt }] })
       });
 
       const data = await response.json();

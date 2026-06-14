@@ -76,10 +76,8 @@ export default function Home() {
   const [showPaywall, setShowPaywall] = useState(false);
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
 
-  // Virality Score state
   const [videoFile, setVideoFile] = useState(null);
   const [videoUrl, setVideoUrl] = useState(null);
-  const [platform, setPlatform] = useState('TikTok');
   const [contentType, setContentType] = useState('');
   const [loading, setLoading] = useState(false);
   const [loadingStep, setLoadingStep] = useState(0);
@@ -90,7 +88,6 @@ export default function Home() {
   const fileInputRef = useRef();
   const replaceInputRef = useRef();
 
-  // Conversion Score state
   const [convFile, setConvFile] = useState(null);
   const [convUrl, setConvUrl] = useState(null);
   const [funnelStage, setFunnelStage] = useState('');
@@ -100,7 +97,6 @@ export default function Home() {
   const [convDragOver, setConvDragOver] = useState(false);
   const convInputRef = useRef();
 
-  // Re-Hook state
   const [hookScript, setHookScript] = useState('');
   const [hookContext, setHookContext] = useState('');
   const [hookType, setHookType] = useState('talking');
@@ -158,7 +154,7 @@ export default function Home() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           mode: 'analyze', filename: videoFile?.name || 'video.mp4',
-          platform, contentType, filesize: videoFile?.size || 0,
+          platform: 'TikTok', contentType, filesize: videoFile?.size || 0,
           frames, hasAudio, videoDuration: meta?.duration || 0,
           videoWidth: meta?.width || 0, videoHeight: meta?.height || 0,
           isVertical: meta?.isVertical ?? true, cutCount: 0
@@ -208,7 +204,7 @@ export default function Home() {
       const res = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode: 'rehook', script: hookScript, platform, hookContext, hookType })
+        body: JSON.stringify({ mode: 'rehook', script: hookScript, platform: 'TikTok', hookContext, hookType })
       });
       if (!res.ok) throw new Error('Failed');
       setHookResults(await res.json());
@@ -263,7 +259,6 @@ export default function Home() {
         <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
       </Head>
 
-      {/* Auth Prompt Modal */}
       {showAuthPrompt && (
         <div className="modal-overlay">
           <div className="modal">
@@ -280,7 +275,6 @@ export default function Home() {
         </div>
       )}
 
-      {/* Paywall Modal */}
       {showPaywall && (
         <div className="modal-overlay">
           <div className="modal">
@@ -289,18 +283,18 @@ export default function Home() {
             <div className="paywall-plans">
               <button className="paywall-plan" onClick={() => router.push('/pricing')}>
                 <div className="paywall-plan-name">Creator</div>
-                <div className="paywall-plan-price">$29/mo</div>
+                <div className="paywall-plan-price">$14.99/mo</div>
                 <div className="paywall-plan-desc">20 analyses/month</div>
               </button>
               <button className="paywall-plan highlighted" onClick={() => router.push('/pricing')}>
                 <div className="paywall-popular">Most Popular</div>
                 <div className="paywall-plan-name">Pro</div>
-                <div className="paywall-plan-price">$79/mo</div>
+                <div className="paywall-plan-price">$49.99/mo</div>
                 <div className="paywall-plan-desc">50 analyses + Conversion Score</div>
               </button>
               <button className="paywall-plan" onClick={() => router.push('/pricing')}>
                 <div className="paywall-plan-name">Agency</div>
-                <div className="paywall-plan-price">$149/mo</div>
+                <div className="paywall-plan-price">$99.99/mo</div>
                 <div className="paywall-plan-desc">150 analyses/month</div>
               </button>
             </div>
@@ -344,7 +338,6 @@ export default function Home() {
         </div>
       </div>
 
-      {/* VIRALITY SCORE */}
       {activeTab === 'virality' && (
         <>
           {!results && !loading && !videoFile && (
@@ -404,14 +397,6 @@ export default function Home() {
                     ))}
                   </div>
                 </div>
-                <div className="platform-select" style={{ marginTop: 20 }}>
-                  <h4>Target Platform</h4>
-                  <div className="platform-options">
-                    {['TikTok', 'Instagram Reels', 'YouTube Shorts'].map(p => (
-                      <button key={p} className={`platform-btn ${platform === p ? 'active' : ''}`} onClick={() => setPlatform(p)}>{p}</button>
-                    ))}
-                  </div>
-                </div>
                 <button className="analyze-btn" onClick={analyzeVideo} disabled={!contentType}>
                   {error ? 'Something went wrong — try again' : contentType ? 'Get My Virality Score' : 'Select a content type first'}
                 </button>
@@ -436,7 +421,7 @@ export default function Home() {
             <section className="results-section">
               <div className="results-header">
                 <h2>Your Virality Report</h2>
-                <p style={{ color: '#888', fontSize: 14, marginTop: 4 }}>Platform: {platform} · {results.findings?.length} findings</p>
+                <p style={{ color: '#888', fontSize: 14, marginTop: 4 }}>{results.findings?.length} findings</p>
               </div>
               <div className="scores-row">
                 <div className="score-card">
@@ -477,7 +462,6 @@ export default function Home() {
         </>
       )}
 
-      {/* CONVERSION SCORE */}
       {activeTab === 'conversion' && (
         <>
           {!convResults && !convLoading && !convFile && (
@@ -598,7 +582,6 @@ export default function Home() {
         </>
       )}
 
-      {/* RE-HOOK */}
       {activeTab === 'rehook' && (
         <section className="tool-section">
           <div className="tool-hero">
@@ -617,15 +600,6 @@ export default function Home() {
                 <div className="hook-type-label">Typed Hook</div>
                 <div className="hook-type-desc">On-screen text over a trending or music video — the viewer reads it. Will be rewritten as short, punchy text that stops the scroll in the first 2-3 words.</div>
               </button>
-            </div>
-          </div>
-
-          <div className="platform-select" style={{ marginBottom: 16 }}>
-            <h4>Target Platform</h4>
-            <div className="platform-options">
-              {['TikTok', 'Instagram Reels', 'YouTube Shorts'].map(p => (
-                <button key={p} className={`platform-btn ${platform === p ? 'active' : ''}`} onClick={() => setPlatform(p)}>{p}</button>
-              ))}
             </div>
           </div>
 
@@ -738,10 +712,6 @@ export default function Home() {
         .replace-btn:hover { border-color: #FF3B00; color: #FF3B00; }
         .platform-select { margin-top: 20px; }
         .platform-select h4 { font-size: 13px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; }
-        .platform-options { display: flex; gap: 10px; flex-wrap: wrap; }
-        .platform-btn { background: #141414; border: 1px solid #2A2A2A; color: #FAFAFA; padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.15s; font-family: 'Inter', sans-serif; }
-        .platform-btn:hover { border-color: #FF3B00; color: #FF3B00; }
-        .platform-btn.active { background: #FF3B00; border-color: #FF3B00; color: white; }
         .content-type-grid { display: flex; flex-direction: column; gap: 10px; }
         .content-type-btn { background: #141414; border: 1px solid #2A2A2A; color: #888; padding: 14px 16px; border-radius: 12px; cursor: pointer; transition: all 0.15s; font-family: 'Inter', sans-serif; display: flex; flex-direction: column; gap: 6px; text-align: left; width: 100%; }
         .content-type-btn:hover { border-color: #FF3B00; color: #FAFAFA; background: rgba(255,59,0,0.05); }

@@ -1,15 +1,6 @@
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 
-const earnings = [
-  { referrals: 10, plan: 'Creator', monthly: '$43.50', yearly: '$522' },
-  { referrals: 25, plan: 'Creator', monthly: '$108.75', yearly: '$1,305' },
-  { referrals: 10, plan: 'Pro', monthly: '$118.50', yearly: '$1,422' },
-  { referrals: 25, plan: 'Pro', monthly: '$296.25', yearly: '$3,555' },
-  { referrals: 10, plan: 'Agency', monthly: '$223.50', yearly: '$2,682' },
-  { referrals: 25, plan: 'Agency', monthly: '$558.75', yearly: '$6,705' },
-];
-
 export default function Affiliates() {
   const router = useRouter();
 
@@ -26,7 +17,6 @@ export default function Affiliates() {
         <a href="/pricing" className="nav-link">View Pricing</a>
       </nav>
 
-      {/* Hero */}
       <section className="hero">
         <div className="hero-eyebrow">Affiliate Program</div>
         <h1>Get paid <em>every month</em> — forever</h1>
@@ -34,7 +24,6 @@ export default function Affiliates() {
         <a href="https://hookd.getrewardful.com" target="_blank" rel="noopener noreferrer" className="hero-btn">Apply to Join →</a>
       </section>
 
-      {/* How it works */}
       <section className="how-section">
         <h2>How it works</h2>
         <div className="steps-grid">
@@ -53,38 +42,6 @@ export default function Affiliates() {
         </div>
       </section>
 
-      {/* Earnings calculator */}
-      <section className="earnings-section">
-        <h2>What you could earn</h2>
-        <p className="earnings-sub">Based on 15% recurring commission. These are real numbers — not inflated projections.</p>
-        <div className="earnings-grid">
-          {earnings.map((e, i) => (
-            <div key={i} className="earnings-card">
-              <div className="earnings-top">
-                <span className="earnings-referrals">{e.referrals} referrals</span>
-                <span className="earnings-plan">{e.plan} plan</span>
-              </div>
-              <div className="earnings-monthly">{e.monthly}<span>/month</span></div>
-              <div className="earnings-yearly">{e.yearly}/year</div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* Why recurring matters */}
-      <section className="recurring-section">
-        <div className="recurring-card">
-          <div className="recurring-icon">🔄</div>
-          <div>
-            <div className="recurring-title">Why recurring commission changes everything</div>
-            <div className="recurring-text">
-              Most affiliate programs give you a one-time payment and move on. We think that's backwards — if you brought us a customer who stays for 2 years, you should benefit from that relationship for 2 years. That's why every HookD affiliate earns 15% of every payment, every month, for as long as their referral stays subscribed. Refer 50 Agency plan users and you're making <strong>$1,117.50 every single month</strong> while you sleep.
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Program details */}
       <section className="details-section">
         <h2>Program details</h2>
         <div className="details-grid">
@@ -105,7 +62,6 @@ export default function Affiliates() {
         </div>
       </section>
 
-      {/* CTA */}
       <section className="cta-section">
         <h2>Ready to earn?</h2>
         <p>Join the HookD affiliate program and start earning recurring income from every creator and agency you refer.</p>
@@ -128,27 +84,13 @@ export default function Affiliates() {
         .hero p { font-size: 16px; color: #888; line-height: 1.7; max-width: 560px; margin: 0 auto 32px; }
         .hero-btn { display: inline-block; background: #FF3B00; color: white; padding: 16px 32px; border-radius: 10px; font-family: 'Syne', sans-serif; font-size: 18px; font-weight: 700; text-decoration: none; transition: background 0.2s; }
         .hero-btn:hover { background: #e03400; }
-        .how-section, .earnings-section, .details-section, .recurring-section, .cta-section { max-width: 900px; margin: 0 auto; padding: 60px 40px; border-top: 1px solid #2A2A2A; }
+        .how-section, .details-section, .cta-section { max-width: 900px; margin: 0 auto; padding: 60px 40px; border-top: 1px solid #2A2A2A; }
         h2 { font-family: 'Syne', sans-serif; font-size: 28px; font-weight: 800; letter-spacing: -0.5px; margin-bottom: 32px; }
         .steps-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
         .step-card { background: #141414; border: 1px solid #2A2A2A; border-radius: 14px; padding: 24px; }
         .step-number { font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 700; color: #FF3B00; letter-spacing: 2px; margin-bottom: 12px; }
         .step-title { font-family: 'Syne', sans-serif; font-size: 16px; font-weight: 700; margin-bottom: 8px; }
         .step-desc { font-size: 13px; color: #888; line-height: 1.6; }
-        .earnings-sub { color: #888; font-size: 14px; margin-top: -20px; margin-bottom: 28px; }
-        .earnings-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
-        .earnings-card { background: #141414; border: 1px solid #2A2A2A; border-radius: 14px; padding: 20px; }
-        .earnings-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-        .earnings-referrals { font-size: 13px; font-weight: 600; color: #FAFAFA; }
-        .earnings-plan { font-size: 11px; color: #FF3B00; font-weight: 600; background: rgba(255,59,0,0.1); padding: 2px 8px; border-radius: 10px; }
-        .earnings-monthly { font-family: 'Syne', sans-serif; font-size: 28px; font-weight: 800; color: #00E87A; margin-bottom: 4px; }
-        .earnings-monthly span { font-size: 14px; color: #888; font-family: 'Inter', sans-serif; font-weight: 400; }
-        .earnings-yearly { font-size: 13px; color: #666; }
-        .recurring-card { display: flex; gap: 20px; background: rgba(255,59,0,0.06); border: 1px solid rgba(255,59,0,0.2); border-radius: 14px; padding: 28px; align-items: flex-start; }
-        .recurring-icon { font-size: 32px; flex-shrink: 0; }
-        .recurring-title { font-family: 'Syne', sans-serif; font-size: 18px; font-weight: 700; margin-bottom: 12px; }
-        .recurring-text { font-size: 14px; color: #888; line-height: 1.8; }
-        .recurring-text strong { color: #FAFAFA; }
         .details-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
         .detail-card { background: #141414; border: 1px solid #2A2A2A; border-radius: 14px; padding: 20px; }
         .detail-icon { font-size: 20px; margin-bottom: 10px; font-family: 'Syne', sans-serif; font-weight: 800; color: #FF3B00; }
@@ -162,9 +104,8 @@ export default function Affiliates() {
         @media (max-width: 768px) {
           nav { padding: 16px 20px; }
           .hero { padding: 48px 20px 40px; }
-          .how-section, .earnings-section, .details-section, .recurring-section, .cta-section { padding: 40px 20px; }
-          .steps-grid, .earnings-grid, .details-grid { grid-template-columns: 1fr; }
-          .recurring-card { flex-direction: column; }
+          .how-section, .details-section, .cta-section { padding: 40px 20px; }
+          .steps-grid, .details-grid { grid-template-columns: 1fr; }
         }
       `}</style>
     </>

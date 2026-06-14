@@ -33,9 +33,9 @@ export default async function handler(req, res) {
       const email = session.customer_details?.email || session.customer_email;
       const customerId = session.customer;
       const subscriptionId = session.subscription;
+      const plan = session.metadata?.plan || 'creator';
 
       if (email) {
-        // Find user in Clerk by email
         const users = await client.users.getUserList({ emailAddress: [email] });
         if (users.data.length > 0) {
           const user = users.data[0];
@@ -43,12 +43,16 @@ export default async function handler(req, res) {
             privateMetadata: {
               ...user.privateMetadata,
               isSubscribed: true,
+              plan,
               stripeCustomerId: customerId,
               stripeSubscriptionId: subscriptionId,
               subscribedAt: new Date().toISOString(),
+              viralityCount: 0,
+              rehookCount: 0,
+              conversionCount: 0,
             }
           });
-          console.log(`Subscribed user: ${email}`);
+          console.log(`Subscribed user: ${email} on plan: ${plan}`);
         }
       }
     }
@@ -57,7 +61,6 @@ export default async function handler(req, res) {
       const subscription = event.data.object;
       const customerId = subscription.customer;
 
-      // Find user by Stripe customer ID
       const users = await client.users.getUserList();
       const user = users.data.find(u => u.privateMetadata?.stripeCustomerId === customerId);
 
@@ -66,6 +69,7 @@ export default async function handler(req, res) {
           privateMetadata: {
             ...user.privateMetadata,
             isSubscribed: false,
+            plan: null,
             cancelledAt: new Date().toISOString(),
           }
         });

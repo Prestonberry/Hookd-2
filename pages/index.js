@@ -246,6 +246,15 @@ export default function Home() {
     { id: 'bottom', label: 'Bottom of Funnel', desc: 'Conversion — closing people who are ready to buy or take action' },
   ];
 
+  const analyzeCards = [
+    { name: '20 Visual Frames', desc: 'Claude sees your entire video start to finish.' },
+    { name: 'Audio Analysis', desc: 'We detect audio and use it for pacing feedback.' },
+    { name: 'Scroll Score', desc: 'How likely this stops the scroll.' },
+    { name: 'Follower Score', desc: 'How likely viewers convert to followers.' },
+    { name: 'Conversion Score', desc: 'How optimized your ad is for its funnel stage.' },
+    { name: 'Ranked by Impact', desc: 'Top 5 findings ranked by what to fix first.' },
+  ];
+
   if (!isLoaded) return (
     <div style={{ background: '#EDE6DC', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ width: 40, height: 40, border: '3px solid #DDD0BF', borderTopColor: '#8B4A2F', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
@@ -356,22 +365,40 @@ export default function Home() {
           )}
           <section className="upload-section">
             {!videoFile && !loading && (
-              <div className={`upload-zone ${dragOver ? 'drag-over' : ''}`}
-                onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-                onDragLeave={() => setDragOver(false)}
-                onDrop={(e) => { e.preventDefault(); setDragOver(false); if (!isSignedIn) { setShowAuthPrompt(true); return; } handleFile(e.dataTransfer.files[0]); }}
-                onClick={() => isSignedIn ? fileInputRef.current.click() : setShowAuthPrompt(true)}>
-                <input ref={fileInputRef} type="file" accept="video/*" style={{ display: 'none' }} onChange={(e) => handleFile(e.target.files[0])} />
-                <div className="upload-icon">
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              <div className="upload-flank">
+                <div className="flank-col">
+                  {analyzeCards.slice(0, 3).map((c, i) => (
+                    <div key={i} className="flank-card">
+                      <div className="flank-card-name">{c.name}</div>
+                      <div className="flank-card-desc">{c.desc}</div>
+                    </div>
+                  ))}
                 </div>
-                <h3>Drop your video here</h3>
-                <p>We analyze visuals, audio, and pacing.</p>
-                <div className="file-types">{['MP4', 'MOV', 'AVI', 'WEBM'].map(t => <span key={t} className="file-tag">{t}</span>)}</div>
-                <div className="analysis-tags">
-                  <span className="atag">20 Visual Frames</span>
-                  <span className="atag">Audio Analysis</span>
-                  <span className="atag">Two Scores</span>
+                <div className={`upload-zone ${dragOver ? 'drag-over' : ''}`}
+                  onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+                  onDragLeave={() => setDragOver(false)}
+                  onDrop={(e) => { e.preventDefault(); setDragOver(false); if (!isSignedIn) { setShowAuthPrompt(true); return; } handleFile(e.dataTransfer.files[0]); }}
+                  onClick={() => isSignedIn ? fileInputRef.current.click() : setShowAuthPrompt(true)}>
+                  <input ref={fileInputRef} type="file" accept="video/*" style={{ display: 'none' }} onChange={(e) => handleFile(e.target.files[0])} />
+                  <div className="upload-icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                  </div>
+                  <h3>Drop your video here</h3>
+                  <p>We analyze visuals, audio, and pacing.</p>
+                  <div className="file-types">{['MP4', 'MOV', 'AVI', 'WEBM'].map(t => <span key={t} className="file-tag">{t}</span>)}</div>
+                  <div className="analysis-tags">
+                    <span className="atag">20 Visual Frames</span>
+                    <span className="atag">Audio Analysis</span>
+                    <span className="atag">Two Scores</span>
+                  </div>
+                </div>
+                <div className="flank-col">
+                  {analyzeCards.slice(3, 6).map((c, i) => (
+                    <div key={i} className="flank-card">
+                      <div className="flank-card-name">{c.name}</div>
+                      <div className="flank-card-desc">{c.desc}</div>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
@@ -475,22 +502,40 @@ export default function Home() {
           )}
           <section className="upload-section">
             {!convFile && !convLoading && (
-              <div className={`upload-zone ${convDragOver ? 'drag-over' : ''}`}
-                onDragOver={(e) => { e.preventDefault(); setConvDragOver(true); }}
-                onDragLeave={() => setConvDragOver(false)}
-                onDrop={(e) => { e.preventDefault(); setConvDragOver(false); if (!isSignedIn) { setShowAuthPrompt(true); return; } handleConvFile(e.dataTransfer.files[0]); }}
-                onClick={() => isSignedIn ? convInputRef.current.click() : setShowAuthPrompt(true)}>
-                <input ref={convInputRef} type="file" accept="video/*" style={{ display: 'none' }} onChange={(e) => handleConvFile(e.target.files[0])} />
-                <div className="upload-icon">
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              <div className="upload-flank">
+                <div className="flank-col">
+                  {analyzeCards.slice(0, 3).map((c, i) => (
+                    <div key={i} className="flank-card">
+                      <div className="flank-card-name">{c.name}</div>
+                      <div className="flank-card-desc">{c.desc}</div>
+                    </div>
+                  ))}
                 </div>
-                <h3>Drop your ad or business video</h3>
-                <p>We analyze it against what drives conversions at your funnel stage.</p>
-                <div className="file-types">{['MP4', 'MOV', 'AVI', 'WEBM'].map(t => <span key={t} className="file-tag">{t}</span>)}</div>
-                <div className="analysis-tags">
-                  <span className="atag">Top of Funnel</span>
-                  <span className="atag">Mid Funnel</span>
-                  <span className="atag">Bottom of Funnel</span>
+                <div className={`upload-zone ${convDragOver ? 'drag-over' : ''}`}
+                  onDragOver={(e) => { e.preventDefault(); setConvDragOver(true); }}
+                  onDragLeave={() => setConvDragOver(false)}
+                  onDrop={(e) => { e.preventDefault(); setConvDragOver(false); if (!isSignedIn) { setShowAuthPrompt(true); return; } handleConvFile(e.dataTransfer.files[0]); }}
+                  onClick={() => isSignedIn ? convInputRef.current.click() : setShowAuthPrompt(true)}>
+                  <input ref={convInputRef} type="file" accept="video/*" style={{ display: 'none' }} onChange={(e) => handleConvFile(e.target.files[0])} />
+                  <div className="upload-icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                  </div>
+                  <h3>Drop your ad or business video</h3>
+                  <p>We analyze it against what drives conversions at your funnel stage.</p>
+                  <div className="file-types">{['MP4', 'MOV', 'AVI', 'WEBM'].map(t => <span key={t} className="file-tag">{t}</span>)}</div>
+                  <div className="analysis-tags">
+                    <span className="atag">Top of Funnel</span>
+                    <span className="atag">Mid Funnel</span>
+                    <span className="atag">Bottom of Funnel</span>
+                  </div>
+                </div>
+                <div className="flank-col">
+                  {analyzeCards.slice(3, 6).map((c, i) => (
+                    <div key={i} className="flank-card">
+                      <div className="flank-card-name">{c.name}</div>
+                      <div className="flank-card-desc">{c.desc}</div>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
@@ -632,27 +677,6 @@ export default function Home() {
         </section>
       )}
 
-      {!results && !convResults && !hookResults && activeTab === 'virality' && !videoFile && !loading && (
-        <section className="principles-strip">
-          <h3>What we actually analyze</h3>
-          <div className="principles-grid">
-            {[
-              { name: '20 Visual Frames', desc: 'Claude sees your entire video start to finish — not just a few snapshots.' },
-              { name: 'Audio Analysis', desc: 'We detect audio presence and use it to inform pacing and engagement feedback.' },
-              { name: 'Scroll Score', desc: 'How likely this stops the scroll based on hook, visuals, and pacing.' },
-              { name: 'Follower Score', desc: 'How likely viewers convert to followers based on 7 psychological signals.' },
-              { name: 'Conversion Score', desc: 'How well your ad is optimized for its specific funnel stage.' },
-              { name: 'Ranked by Impact', desc: 'Top 5 findings ranked so you always know exactly what to fix first.' },
-            ].map((p, i) => (
-              <div key={i} className="principle-item">
-                <div className="p-name">{p.name}</div>
-                <div className="p-desc">{p.desc}</div>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
       <footer>
         <div className="footer-left">
           <span className="footer-logo">Hook<span>D</span></span>
@@ -691,7 +715,12 @@ export default function Home() {
         .hero p { font-size: 16px; color: #6B5D4F; line-height: 1.6; max-width: 540px; margin: 0 auto 8px; }
         .hero-cta { background: #2B2018; color: #EDE6DC; border: none; padding: 16px 32px; border-radius: 10px; font-family: 'Archivo Black', sans-serif; font-size: 18px; font-weight: 700; cursor: pointer; transition: background 0.2s; }
         .hero-cta:hover { background: #4A3829; }
-        .upload-section { max-width: 760px; margin: 0 auto; padding: 0 40px 48px; }
+        .upload-section { max-width: 1100px; margin: 0 auto; padding: 0 40px 48px; }
+        .upload-flank { display: grid; grid-template-columns: 1fr 1.4fr 1fr; gap: 16px; align-items: center; }
+        .flank-col { display: flex; flex-direction: column; gap: 12px; }
+        .flank-card { background: #F4EEE5; border: 1px solid #DDD0BF; border-radius: 12px; padding: 14px 16px; }
+        .flank-card-name { font-family: 'Archivo Black', sans-serif; font-size: 13px; font-weight: 400; margin-bottom: 5px; color: #2B2018; }
+        .flank-card-desc { font-size: 11px; color: #6B5D4F; line-height: 1.45; }
         .tool-section { max-width: 760px; margin: 0 auto; padding: 24px 40px 48px; }
         .tool-hero { text-align: center; margin-bottom: 32px; }
         .tool-hero h2 { font-family: 'Archivo Black', sans-serif; font-size: 32px; font-weight: 800; letter-spacing: -1px; margin-bottom: 12px; color: #2B2018; }
@@ -782,12 +811,6 @@ export default function Home() {
         .hook-why { font-size: 13px; color: #888; line-height: 1.6; margin-bottom: 16px; }
         .copy-btn { background: transparent; border: 1px solid #C9B8A2; color: #888; padding: 8px 16px; border-radius: 8px; font-size: 13px; cursor: pointer; transition: all 0.2s; font-family: 'Inter', sans-serif; }
         .copy-btn:hover { border-color: #6B7A4F; color: #6B7A4F; }
-        .principles-strip { border-top: 1px solid #DDD0BF; padding: 32px 40px; max-width: 760px; margin: 0 auto; }
-        .principles-strip h3 { font-size: 12px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: #888; margin-bottom: 24px; }
-        .principles-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
-        .principle-item { padding: 16px; background: #F4EEE5; border-radius: 10px; border: 1px solid #DDD0BF; }
-        .p-name { font-size: 13px; font-weight: 600; margin-bottom: 4px; color: #2B2018; }
-        .p-desc { font-size: 12px; color: #888; line-height: 1.5; }
         footer { border-top: 1px solid #DDD0BF; padding: 24px 40px; display: flex; justify-content: space-between; align-items: center; }
         .footer-left { display: flex; align-items: center; gap: 16px; }
         .footer-logo { font-family: 'Archivo Black', sans-serif; font-weight: 800; font-size: 16px; color: #2B2018; }
@@ -817,7 +840,8 @@ export default function Home() {
           nav { padding: 16px 20px; }
           .hero { padding: 48px 20px 40px; }
           .upload-section, .tool-section, .results-section { padding: 0 20px 60px; }
-          .principles-strip { padding: 40px 20px; }
+          .upload-flank { grid-template-columns: 1fr; gap: 12px; }
+          .flank-col { flex-direction: column; }
           .upload-zone { padding: 40px 20px; }
           .result-actions { flex-direction: column; }
           .tabs-wrapper { padding: 0 20px; }

@@ -813,7 +813,7 @@ export default function Home() {
         .modal-btn-secondary:hover { border-color: #FF3B00; color: #FAFAFA; }
         .modal-dismiss { background: transparent; border: none; color: #555; font-size: 13px; cursor: pointer; font-family: 'Inter', sans-serif; }
         .modal-dismiss:hover { color: #888; }
-        .paywall-plans { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px; width: 100%; }
+        .paywall-plans { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px; width: 100%; margin-left: auto; margin-right: auto; }
         .paywall-plan { background: #1E1E1E; border: 1px solid #2A2A2A; border-radius: 10px; padding: 12px 6px; cursor: pointer; transition: all 0.15s; position: relative; box-sizing: border-box; }
         .paywall-plan:hover { border-color: #FF3B00; }
         .paywall-plan.highlighted { border-color: #FF3B00; background: #1A0A0A; }

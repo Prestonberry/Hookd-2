@@ -258,7 +258,7 @@ export default function Home() {
       <Head>
         <title>HookD — Know Why They Stop</title>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+        <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
       </Head>
 
       {showAuthPrompt && (
@@ -668,10 +668,10 @@ export default function Home() {
 
       <style jsx global>{`
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { background-color: #EDE6DC; background-image: radial-gradient(rgba(0,0,0,0.025) 1px, transparent 1px); background-size: 4px 4px; color: #2B2018; font-family: 'JetBrains Mono', monospace; min-height: 100vh; overflow-x: hidden; letter-spacing: -0.2px; }
+        body { background-color: #EDE6DC; background-image: url('https://www.transparenttextures.com/patterns/natural-paper.png'); color: #2B2018; font-family: 'JetBrains Mono', monospace; min-height: 100vh; overflow-x: hidden; letter-spacing: -0.2px; }
         #__next { width: 100vw; overflow-x: hidden; }
         nav { display: flex; justify-content: space-between; align-items: center; padding: 20px 40px; border-bottom: 1px solid #DDD0BF; position: sticky; top: 0; background: rgba(245,240,235,0.95); backdrop-filter: blur(10px); z-index: 100; }
-        .logo { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 22px; letter-spacing: -0.5px; color: #2B2018; }
+        .logo { font-family: 'Archivo Black', sans-serif; font-weight: 800; font-size: 22px; letter-spacing: -0.5px; color: #2B2018; }
         .logo span { color: #8B4A2F; }
         .nav-right { display: flex; align-items: center; gap: 12px; }
         .free-badge { background: rgba(139,74,47,0.1); border: 1px solid rgba(139,74,47,0.3); color: #8B4A2F; font-size: 12px; font-weight: 600; padding: 4px 12px; border-radius: 20px; }
@@ -686,20 +686,20 @@ export default function Home() {
         .tab.active { color: #8B4A2F; border-bottom-color: #8B4A2F; }
         .hero { padding: 48px 40px 24px; max-width: 900px; margin: 0 auto; text-align: center; }
         .hero-eyebrow { font-size: 12px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: #8B4A2F; margin-bottom: 14px; }
-        .hero h1 { font-family: 'Syne', sans-serif; font-size: clamp(36px, 5.5vw, 60px); font-weight: 800; line-height: 1.02; letter-spacing: -2px; margin-bottom: 16px; color: #2B2018; }
+        .hero h1 { font-family: 'Archivo Black', sans-serif; font-size: clamp(36px, 5.5vw, 60px); font-weight: 800; line-height: 1.02; letter-spacing: -2px; margin-bottom: 16px; color: #2B2018; }
         .hero h1 em { font-style: normal; color: #8B4A2F; }
         .hero p { font-size: 16px; color: #6B5D4F; line-height: 1.6; max-width: 540px; margin: 0 auto 8px; }
-        .hero-cta { background: #2B2018; color: #EDE6DC; border: none; padding: 16px 32px; border-radius: 10px; font-family: 'Syne', sans-serif; font-size: 18px; font-weight: 700; cursor: pointer; transition: background 0.2s; }
+        .hero-cta { background: #2B2018; color: #EDE6DC; border: none; padding: 16px 32px; border-radius: 10px; font-family: 'Archivo Black', sans-serif; font-size: 18px; font-weight: 700; cursor: pointer; transition: background 0.2s; }
         .hero-cta:hover { background: #4A3829; }
         .upload-section { max-width: 760px; margin: 0 auto; padding: 0 40px 48px; }
         .tool-section { max-width: 760px; margin: 0 auto; padding: 24px 40px 48px; }
         .tool-hero { text-align: center; margin-bottom: 32px; }
-        .tool-hero h2 { font-family: 'Syne', sans-serif; font-size: 32px; font-weight: 800; letter-spacing: -1px; margin-bottom: 12px; color: #2B2018; }
+        .tool-hero h2 { font-family: 'Archivo Black', sans-serif; font-size: 32px; font-weight: 800; letter-spacing: -1px; margin-bottom: 12px; color: #2B2018; }
         .tool-hero p { color: #666; font-size: 15px; line-height: 1.7; max-width: 500px; margin: 0 auto; }
         .upload-zone { border: 2px dashed #C9B8A2; border-radius: 16px; padding: 36px 40px; text-align: center; cursor: pointer; transition: all 0.2s; background: #F4EEE5; }
         .upload-zone:hover, .upload-zone.drag-over { border-color: #8B4A2F; background: rgba(139,74,47,0.04); }
         .upload-icon { width: 48px; height: 48px; background: #E2D7C8; border-radius: 14px; display: flex; align-items: center; justify-content: center; margin: 0 auto 14px; }
-        .upload-zone h3 { font-family: 'Syne', sans-serif; font-size: 20px; font-weight: 700; margin-bottom: 8px; color: #2B2018; }
+        .upload-zone h3 { font-family: 'Archivo Black', sans-serif; font-size: 20px; font-weight: 700; margin-bottom: 8px; color: #2B2018; }
         .upload-zone p { color: #888; font-size: 14px; }
         .file-types { margin-top: 16px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
         .file-tag { background: #E2D7C8; border: 1px solid #C9B8A2; padding: 4px 10px; border-radius: 6px; font-size: 12px; color: #888; }
@@ -728,7 +728,7 @@ export default function Home() {
         .hook-type-label { font-size: 14px; font-weight: 700; margin-bottom: 6px; color: inherit; }
         .hook-type-desc { font-size: 12px; color: #999; line-height: 1.5; }
         .hook-type-btn.active .hook-type-desc { color: rgba(139,74,47,0.7); }
-        .analyze-btn { display: block; width: 100%; margin-top: 20px; padding: 18px; background: #2B2018; color: #EDE6DC; border: none; border-radius: 12px; font-family: 'Syne', sans-serif; font-size: 18px; font-weight: 700; cursor: pointer; transition: all 0.2s; }
+        .analyze-btn { display: block; width: 100%; margin-top: 20px; padding: 18px; background: #2B2018; color: #EDE6DC; border: none; border-radius: 12px; font-family: 'Archivo Black', sans-serif; font-size: 18px; font-weight: 700; cursor: pointer; transition: all 0.2s; }
         .analyze-btn:hover { background: #4A3829; }
         .analyze-btn:disabled { background: #C9B8A2; color: #999; cursor: not-allowed; }
         .script-input { width: 100%; background: #F4EEE5; border: 1px solid #DDD0BF; border-radius: 12px; padding: 16px; color: #2B2018; font-family: 'Inter', sans-serif; font-size: 15px; line-height: 1.6; resize: vertical; transition: border-color 0.2s; }
@@ -737,7 +737,7 @@ export default function Home() {
         .loading-state { text-align: center; padding: 60px 20px; }
         .loading-spinner { width: 48px; height: 48px; border: 3px solid #DDD0BF; border-top-color: #8B4A2F; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 24px; }
         @keyframes spin { to { transform: rotate(360deg); } }
-        .loading-state h3 { font-family: 'Syne', sans-serif; font-size: 20px; font-weight: 700; margin-bottom: 8px; color: #2B2018; }
+        .loading-state h3 { font-family: 'Archivo Black', sans-serif; font-size: 20px; font-weight: 700; margin-bottom: 8px; color: #2B2018; }
         .loading-state p { color: #8B4A2F; font-size: 14px; font-weight: 500; }
         .loading-steps { margin-top: 24px; display: flex; flex-direction: column; gap: 8px; max-width: 320px; margin-left: auto; margin-right: auto; }
         .loading-step { display: flex; align-items: center; gap: 10px; font-size: 13px; color: #888; text-align: left; padding: 10px 14px; background: #F4EEE5; border-radius: 8px; border: 1px solid #DDD0BF; opacity: 0.4; transition: all 0.3s; }
@@ -746,20 +746,20 @@ export default function Home() {
         .step-dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
         .results-section { max-width: 760px; margin: 0 auto; padding: 24px 40px 48px; }
         .results-header { margin-bottom: 24px; }
-        .results-header h2 { font-family: 'Syne', sans-serif; font-size: 28px; font-weight: 800; letter-spacing: -0.5px; color: #2B2018; }
+        .results-header h2 { font-family: 'Archivo Black', sans-serif; font-size: 28px; font-weight: 800; letter-spacing: -0.5px; color: #2B2018; }
         .scores-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 32px; }
         .score-card { background: #F4EEE5; border: 1px solid #DDD0BF; border-radius: 14px; padding: 24px; text-align: center; }
-        .score-number { font-family: 'Syne', sans-serif; font-size: 52px; font-weight: 800; line-height: 1; margin-bottom: 8px; }
-        .score-title { font-family: 'Syne', sans-serif; font-size: 15px; font-weight: 700; margin-bottom: 4px; color: #2B2018; }
+        .score-number { font-family: 'Archivo Black', sans-serif; font-size: 52px; font-weight: 800; line-height: 1; margin-bottom: 8px; }
+        .score-title { font-family: 'Archivo Black', sans-serif; font-size: 15px; font-weight: 700; margin-bottom: 4px; color: #2B2018; }
         .score-subtitle { font-size: 12px; color: #888; line-height: 1.4; margin-bottom: 12px; }
         .score-label-badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
         .feedback-grid { display: flex; flex-direction: column; gap: 16px; }
         .feedback-card { background: #F4EEE5; border: 1px solid #DDD0BF; border-radius: 14px; padding: 24px; }
         .card-header { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 16px; }
-        .card-rank { font-family: 'Syne', sans-serif; font-size: 22px; font-weight: 800; flex-shrink: 0; line-height: 1; }
+        .card-rank { font-family: 'Archivo Black', sans-serif; font-size: 22px; font-weight: 800; flex-shrink: 0; line-height: 1; }
         .card-title-group { flex: 1; }
         .card-category { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 4px; }
-        .card-title { font-family: 'Syne', sans-serif; font-size: 17px; font-weight: 700; line-height: 1.3; color: #2B2018; }
+        .card-title { font-family: 'Archivo Black', sans-serif; font-size: 17px; font-weight: 700; line-height: 1.3; color: #2B2018; }
         .psych-fact { background: #E2D7C8; border-left: 3px solid #C9B8A2; padding: 12px 16px; border-radius: 0 8px 8px 0; font-size: 13px; color: #666; line-height: 1.6; margin-bottom: 16px; }
         .psych-fact strong { color: #2B2018; font-weight: 600; }
         .fix-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #6B7A4F; margin-bottom: 8px; }
@@ -767,7 +767,7 @@ export default function Home() {
         .result-actions { display: flex; gap: 12px; margin-top: 32px; }
         .replace-result-btn { flex: 1; padding: 16px; background: transparent; color: #888; border: 1px solid #C9B8A2; border-radius: 12px; font-family: 'Inter', sans-serif; font-size: 15px; font-weight: 500; cursor: pointer; }
         .replace-result-btn:hover { border-color: #8B4A2F; color: #8B4A2F; }
-        .retry-btn { flex: 1; padding: 16px; background: #2B2018; color: #EDE6DC; border: none; border-radius: 12px; font-family: 'Syne', sans-serif; font-size: 15px; font-weight: 700; cursor: pointer; }
+        .retry-btn { flex: 1; padding: 16px; background: #2B2018; color: #EDE6DC; border: none; border-radius: 12px; font-family: 'Archivo Black', sans-serif; font-size: 15px; font-weight: 700; cursor: pointer; }
         .retry-btn:hover { background: #4A3829; }
         .hook-results { margin-top: 24px; }
         .hook-original { background: #F4EEE5; border: 1px solid #DDD0BF; border-radius: 12px; padding: 20px; margin-bottom: 24px; }
@@ -776,7 +776,7 @@ export default function Home() {
         .hooks-grid { display: flex; flex-direction: column; gap: 16px; }
         .hook-card { background: #F4EEE5; border: 1px solid #DDD0BF; border-radius: 14px; padding: 20px; }
         .hook-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
-        .hook-style { font-family: 'Syne', sans-serif; font-size: 14px; font-weight: 700; color: #8B4A2F; }
+        .hook-style { font-family: 'Archivo Black', sans-serif; font-size: 14px; font-weight: 700; color: #8B4A2F; }
         .hook-duration { font-size: 12px; color: #AAA; background: #E2D7C8; padding: 3px 8px; border-radius: 6px; }
         .hook-text { font-size: 18px; font-weight: 600; line-height: 1.5; margin-bottom: 12px; color: #2B2018; }
         .hook-why { font-size: 13px; color: #888; line-height: 1.6; margin-bottom: 16px; }
@@ -790,16 +790,16 @@ export default function Home() {
         .p-desc { font-size: 12px; color: #888; line-height: 1.5; }
         footer { border-top: 1px solid #DDD0BF; padding: 24px 40px; display: flex; justify-content: space-between; align-items: center; }
         .footer-left { display: flex; align-items: center; gap: 16px; }
-        .footer-logo { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 16px; color: #2B2018; }
+        .footer-logo { font-family: 'Archivo Black', sans-serif; font-weight: 800; font-size: 16px; color: #2B2018; }
         .footer-logo span { color: #8B4A2F; }
         .footer-copy { font-size: 12px; color: #AAA; }
         .footer-links { display: flex; gap: 20px; }
         .footer-links a { font-size: 13px; color: #888; text-decoration: none; transition: color 0.2s; }
         .footer-links a:hover { color: #8B4A2F; }
         .modal { background: #F4EEE5; border: 1px solid #DDD0BF; border-radius: 20px; padding: 40px 20px; max-width: 620px; width: 100%; text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,0.08); }
-        .modal h2 { font-family: 'Syne', sans-serif; font-size: 24px; font-weight: 800; margin-bottom: 12px; letter-spacing: -0.5px; color: #2B2018; }
+        .modal h2 { font-family: 'Archivo Black', sans-serif; font-size: 24px; font-weight: 800; margin-bottom: 12px; letter-spacing: -0.5px; color: #2B2018; }
         .modal p { font-size: 14px; color: #888; line-height: 1.7; margin-bottom: 28px; }
-        .modal-btn-primary { display: block; width: 100%; padding: 16px; background: #2B2018; color: #EDE6DC; border: none; border-radius: 10px; font-family: 'Syne', sans-serif; font-size: 16px; font-weight: 700; cursor: pointer; margin-bottom: 12px; transition: background 0.2s; }
+        .modal-btn-primary { display: block; width: 100%; padding: 16px; background: #2B2018; color: #EDE6DC; border: none; border-radius: 10px; font-family: 'Archivo Black', sans-serif; font-size: 16px; font-weight: 700; cursor: pointer; margin-bottom: 12px; transition: background 0.2s; }
         .modal-btn-primary:hover { background: #4A3829; }
         .modal-btn-secondary { display: block; width: 100%; padding: 14px; background: transparent; color: #888; border: 1px solid #C9B8A2; border-radius: 10px; font-family: 'Inter', sans-serif; font-size: 14px; cursor: pointer; margin-bottom: 12px; transition: all 0.2s; }
         .modal-btn-secondary:hover { border-color: #8B4A2F; color: #2B2018; }
@@ -810,8 +810,8 @@ export default function Home() {
         .paywall-plan:hover { border-color: #8B4A2F; }
         .paywall-plan.highlighted { border-color: #8B4A2F; background: rgba(139,74,47,0.08); }
         .paywall-popular { position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: #8B4A2F; color: white; font-size: 9px; font-weight: 700; padding: 3px 10px; border-radius: 10px; white-space: nowrap; text-transform: uppercase; }
-        .paywall-plan-name { font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 700; margin-bottom: 4px; color: #2B2018; }
-        .paywall-plan-price { font-family: 'Syne', sans-serif; font-size: 18px; font-weight: 800; color: #8B4A2F; margin-bottom: 4px; }
+        .paywall-plan-name { font-family: 'Archivo Black', sans-serif; font-size: 13px; font-weight: 700; margin-bottom: 4px; color: #2B2018; }
+        .paywall-plan-price { font-family: 'Archivo Black', sans-serif; font-size: 18px; font-weight: 800; color: #8B4A2F; margin-bottom: 4px; }
         .paywall-plan-desc { font-size: 10px; color: #888; line-height: 1.3; }
         @media (max-width: 600px) {
           nav { padding: 16px 20px; }

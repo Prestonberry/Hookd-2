@@ -266,7 +266,7 @@ export default function Home() {
       </Head>
 
       {showAuthPrompt && (
-        <div className="modal-overlay">
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.85)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', backdropFilter: 'blur(4px)' }}>
           <div className="modal">
             <h2>Create your free account</h2>
             <p>Sign up to get 3 free analyses. No credit card required.</p>
@@ -282,7 +282,7 @@ export default function Home() {
       )}
 
       {showPaywall && (
-        <div className="modal-overlay">
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.85)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', backdropFilter: 'blur(4px)' }}>
           <div className="modal">
             <h2>You've hit your limit</h2>
             <p>Upgrade to keep analyzing and making content that performs.</p>
@@ -676,7 +676,8 @@ export default function Home() {
 
       <style jsx global>{`
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { background: #0A0A0A; color: #FAFAFA; font-family: 'Inter', sans-serif; min-height: 100vh; overflow-x: hidden; overflow-y: scroll; } #__next { width: 100%; position: relative; }
+        body { background: #0A0A0A; color: #FAFAFA; font-family: 'Inter', sans-serif; min-height: 100vh; overflow-x: hidden; }
+        #__next { width: 100vw; overflow-x: hidden; }
         nav { display: flex; justify-content: space-between; align-items: center; padding: 20px 40px; border-bottom: 1px solid #2A2A2A; position: sticky; top: 0; background: rgba(10,10,10,0.95); backdrop-filter: blur(10px); z-index: 100; }
         .logo { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 22px; letter-spacing: -0.5px; }
         .logo span { color: #FF3B00; }
@@ -803,7 +804,6 @@ export default function Home() {
         .footer-links { display: flex; gap: 20px; }
         .footer-links a { font-size: 13px; color: #888; text-decoration: none; transition: color 0.2s; }
         .footer-links a:hover { color: #FF3B00; }
-        .modal-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.85); z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 20px; backdrop-filter: blur(4px); transform: none; margin: 0; }
         .modal { background: #141414; border: 1px solid #2A2A2A; border-radius: 20px; padding: 40px; max-width: 480px; width: 100%; text-align: center; }
         .modal h2 { font-family: 'Syne', sans-serif; font-size: 24px; font-weight: 800; margin-bottom: 12px; letter-spacing: -0.5px; }
         .modal p { font-size: 14px; color: #888; line-height: 1.7; margin-bottom: 28px; }

@@ -813,8 +813,8 @@ export default function Home() {
         .modal-btn-secondary:hover { border-color: #FF3B00; color: #FAFAFA; }
         .modal-dismiss { background: transparent; border: none; color: #555; font-size: 13px; cursor: pointer; font-family: 'Inter', sans-serif; }
         .modal-dismiss:hover { color: #888; }
-        .paywall-plans { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px; width: 100%; margin: 0 auto; }
-        .paywall-plan { background: #1E1E1E; border: 1px solid #2A2A2A; border-radius: 10px; padding: 12px 6px; cursor: pointer; transition: all 0.15s; position: relative; box-sizing: border-box; }
+        .paywall-plans { display: flex; flex-direction: row; gap: 8px; margin-bottom: 20px; width: 100%; justify-content: center; align-items: stretch; }
+        .paywall-plan { background: #1E1E1E; border: 1px solid #2A2A2A; border-radius: 10px; padding: 12px 6px; cursor: pointer; transition: all 0.15s; position: relative; box-sizing: border-box; flex: 1; min-width: 0; }
         .paywall-plan:hover { border-color: #FF3B00; }
         .paywall-plan.highlighted { border-color: #FF3B00; background: #1A0A0A; }
         .paywall-popular { position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: #FF3B00; color: white; font-size: 9px; font-weight: 700; padding: 3px 10px; border-radius: 10px; white-space: nowrap; text-transform: uppercase; }

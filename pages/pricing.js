@@ -7,7 +7,7 @@ const plans = [
     id: 'creator',
     name: 'Creator',
     price: 14.99,
-    priceId: 'price_1ThopBKHHjJwCkb0ClazXGvV',
+    priceId: 'price_1ThopBKHHjJwCkb0CIazXGvV',
     emoji: '',
     description: 'For individual creators serious about growth',
     features: [

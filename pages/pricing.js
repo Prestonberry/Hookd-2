@@ -24,7 +24,7 @@ const plans = [
     id: 'pro',
     name: 'Pro',
     price: 49.99,
-    priceId: 'price_1ThorgKHHjJwCkb0y5ZZDr0K',
+    priceId: 'price_1TisuMKHHjJwCkb0TvtvRRap',
     emoji: '',
     description: 'For creators and businesses who need conversion insights',
     features: [
@@ -42,7 +42,7 @@ const plans = [
     id: 'agency',
     name: 'Agency',
     price: 99.99,
-    priceId: 'price_1ThotBKHHjJwCkb02iwgGEai',
+    priceId: 'price_1Tisv9KHHjJwCkb0A982nJB9',
     emoji: '',
     description: 'For agencies and teams managing multiple clients',
     features: [

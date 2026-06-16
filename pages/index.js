@@ -804,7 +804,7 @@ export default function Home() {
         .footer-links { display: flex; gap: 20px; }
         .footer-links a { font-size: 13px; color: #888; text-decoration: none; transition: color 0.2s; }
         .footer-links a:hover { color: #FF3B00; }
-        .modal { background: #141414; border: 1px solid #2A2A2A; border-radius: 20px; padding: 40px 20px; max-width: 560px; width: 100%; text-align: center; margin-left: 40px; }
+        .modal { background: #141414; border: 1px solid #2A2A2A; border-radius: 20px; padding: 40px 20px; max-width: 560px; width: 100%; text-align: center; }
         .modal h2 { font-family: 'Syne', sans-serif; font-size: 24px; font-weight: 800; margin-bottom: 12px; letter-spacing: -0.5px; }
         .modal p { font-size: 14px; color: #888; line-height: 1.7; margin-bottom: 28px; }
         .modal-btn-primary { display: block; width: 100%; padding: 16px; background: #FF3B00; color: white; border: none; border-radius: 10px; font-family: 'Syne', sans-serif; font-size: 16px; font-weight: 700; cursor: pointer; margin-bottom: 12px; transition: background 0.2s; }

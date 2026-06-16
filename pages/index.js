@@ -716,13 +716,16 @@ export default function Home() {
         .hero-cta { background: #2B2018; color: #EDE6DC; border: none; padding: 16px 32px; border-radius: 10px; font-family: 'Archivo Black', sans-serif; font-size: 18px; font-weight: 700; cursor: pointer; transition: background 0.2s; }
         .hero-cta:hover { background: #4A3829; }
         .upload-section { max-width: 1240px; margin: 0 auto; padding: 0 48px 56px; }
-        .upload-flank { display: grid; grid-template-columns: 1fr minmax(420px, 1.6fr) 1fr; gap: 48px; align-items: center; }
-        .flank-col { display: flex; flex-direction: column; gap: 14px; }
+        .upload-flank { display: grid; grid-template-columns: 1fr minmax(420px, 1.6fr) 1fr; gap: 56px; align-items: center; }
+        .flank-col { display: flex; flex-direction: column; gap: 28px; }
         .flank-col:first-child { text-align: right; }
-        .flank-card { background: rgba(244,238,229,0.6); border: 1px solid #DDD0BF; border-radius: 12px; padding: 16px 18px; transition: all 0.2s; }
-        .flank-card:hover { border-color: #8B4A2F; background: rgba(244,238,229,0.95); transform: translateY(-2px); }
-        .flank-card-name { font-family: 'Archivo Black', sans-serif; font-size: 13px; font-weight: 400; margin-bottom: 6px; color: #2B2018; letter-spacing: 0.3px; }
+        .flank-card { position: relative; background: transparent; border: none; padding: 0; transition: all 0.2s; cursor: default; }
+        .flank-card-name { font-family: 'Archivo Black', sans-serif; font-size: 13px; font-weight: 400; margin-bottom: 6px; color: #2B2018; letter-spacing: 0.3px; padding-bottom: 6px; display: inline-block; border-bottom: 2px solid #8B4A2F; }
         .flank-card-desc { font-size: 11px; color: #6B5D4F; line-height: 1.5; }
+        /* connector tick: right column points left toward center */
+        .flank-col:last-child .flank-card::before { content: ''; position: absolute; top: 9px; left: -28px; width: 24px; height: 2px; background: #C9B8A2; }
+        /* connector tick: left column points right toward center */
+        .flank-col:first-child .flank-card::before { content: ''; position: absolute; top: 9px; right: -28px; width: 24px; height: 2px; background: #C9B8A2; }
         .tool-section { max-width: 760px; margin: 0 auto; padding: 24px 40px 48px; }
         .tool-hero { text-align: center; margin-bottom: 32px; }
         .tool-hero h2 { font-family: 'Archivo Black', sans-serif; font-size: 32px; font-weight: 800; letter-spacing: -1px; margin-bottom: 12px; color: #2B2018; }
@@ -842,7 +845,9 @@ export default function Home() {
           nav { padding: 16px 20px; }
           .hero { padding: 48px 20px 40px; }
           .upload-section, .tool-section, .results-section { padding: 0 20px 60px; }
-          .upload-flank { grid-template-columns: 1fr; gap: 12px; }
+          .upload-flank { grid-template-columns: 1fr; gap: 20px; }
+          .flank-col:first-child { text-align: left; }
+          .flank-card::before { display: none !important; }
           .flank-col { flex-direction: column; }
           .upload-zone { padding: 40px 20px; }
           .result-actions { flex-direction: column; }

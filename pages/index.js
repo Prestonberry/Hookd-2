@@ -668,6 +668,8 @@ export default function Home() {
         </div>
         <div className="footer-links">
           <a href="/pricing">Pricing</a>
+          <a href="/terms">Terms</a>
+          <a href="/privacy">Privacy</a>
         </div>
       </footer>
 

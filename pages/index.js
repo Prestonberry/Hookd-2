@@ -715,8 +715,8 @@ export default function Home() {
         .hero p { font-size: 16px; color: #6B5D4F; line-height: 1.6; max-width: 540px; margin: 0 auto 8px; }
         .hero-cta { background: #2B2018; color: #EDE6DC; border: none; padding: 16px 32px; border-radius: 10px; font-family: 'Archivo Black', sans-serif; font-size: 18px; font-weight: 700; cursor: pointer; transition: background 0.2s; }
         .hero-cta:hover { background: #4A3829; }
-        .upload-section { max-width: 1240px; margin: 0 auto; padding: 0 48px 56px; }
-        .upload-flank { display: grid; grid-template-columns: 1fr minmax(420px, 1.6fr) 1fr; gap: 56px; align-items: center; }
+        .upload-section { max-width: 1360px; margin: 0 auto; padding: 0 56px 56px; }
+        .upload-flank { display: grid; grid-template-columns: 1fr minmax(420px, 1.3fr) 1fr; gap: 72px; align-items: center; }
         .flank-col { display: flex; flex-direction: column; gap: 28px; }
         .flank-col:first-child { text-align: right; }
         .flank-card { position: relative; background: transparent; border: none; padding: 0; transition: all 0.2s; cursor: default; }

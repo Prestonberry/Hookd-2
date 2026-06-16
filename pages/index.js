@@ -670,6 +670,7 @@ export default function Home() {
           <a href="/pricing">Pricing</a>
           <a href="/terms">Terms</a>
           <a href="/privacy">Privacy</a>
+          <a href="/accessibility">Accessibility</a>
         </div>
       </footer>
 

@@ -382,7 +382,7 @@ export default function Home() {
             {videoFile && !loading && !results && (
               <>
                 <div className="video-preview">
-                  <video src={videoUrl} controls />
+                  <video src={videoUrl} controls playsInline style={{ minHeight: "200px" }} />
                   <div className="video-info">
                     <div>
                       <div className="video-filename">{videoFile.name}</div>
@@ -501,7 +501,7 @@ export default function Home() {
             {convFile && !convLoading && !convResults && (
               <>
                 <div className="video-preview">
-                  <video src={convUrl} controls />
+                  <video src={convUrl} controls playsInline style={{ minHeight: "200px" }} />
                   <div className="video-info">
                     <div>
                       <div className="video-filename">{convFile.name}</div>

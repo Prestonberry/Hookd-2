@@ -713,7 +713,7 @@ export default function Home() {
         .analysis-tags { margin-top: 14px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
         .atag { background: rgba(255,59,0,0.1); border: 1px solid rgba(255,59,0,0.3); color: #FF3B00; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
         .video-preview { margin-top: 24px; border-radius: 12px; overflow: hidden; background: #141414; border: 1px solid #2A2A2A; }
-        .video-preview video { width: 100%; max-height: 380px; object-fit: contain; display: block; background: #000; }
+        .video-preview video { width: 100%; min-height: 200px; max-height: 380px; object-fit: contain; display: block; background: #000; }
         .video-info { padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
         .video-filename { font-size: 14px; font-weight: 500; word-break: break-all; }
         .video-size { font-size: 12px; color: #888; margin-top: 2px; }

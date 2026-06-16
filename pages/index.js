@@ -803,7 +803,7 @@ export default function Home() {
         .footer-links { display: flex; gap: 20px; }
         .footer-links a { font-size: 13px; color: #888; text-decoration: none; transition: color 0.2s; }
         .footer-links a:hover { color: #FF3B00; }
-        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.85); z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 20px; backdrop-filter: blur(4px); }
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.85); z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 20px; backdrop-filter: blur(4px); transform: none; margin: 0; }
         .modal { background: #141414; border: 1px solid #2A2A2A; border-radius: 20px; padding: 40px; max-width: 480px; width: 100%; text-align: center; }
         .modal h2 { font-family: 'Syne', sans-serif; font-size: 24px; font-weight: 800; margin-bottom: 12px; letter-spacing: -0.5px; }
         .modal p { font-size: 14px; color: #888; line-height: 1.7; margin-bottom: 28px; }

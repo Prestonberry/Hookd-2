@@ -717,7 +717,7 @@ export default function Home() {
 
       <style jsx global>{`
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { background-color: #EDE6DC; color: #2B2018; font-family: 'JetBrains Mono', monospace; min-height: 100vh; overflow-x: hidden; letter-spacing: -0.2px; }
+        body { background-color: #EDE6DC; background-image: url('/linen-texture.png'); color: #2B2018; font-family: 'JetBrains Mono', monospace; min-height: 100vh; overflow-x: hidden; letter-spacing: -0.2px; }
         #__next { width: 100vw; overflow-x: hidden; }
         nav { display: flex; justify-content: space-between; align-items: center; padding: 20px 40px; border-bottom: 1px solid #DDD0BF; position: sticky; top: 0; background: rgba(245,240,235,0.95); backdrop-filter: blur(10px); z-index: 100; }
         .logo { font-family: 'Archivo Black', sans-serif; font-weight: 800; font-size: 22px; letter-spacing: -0.5px; color: #2B2018; }

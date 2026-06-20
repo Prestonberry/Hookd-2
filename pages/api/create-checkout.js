@@ -19,6 +19,29 @@ export default async function handler(req, res) {
     const existingSubscriptionId = metadata.stripeSubscriptionId;
     const isSubscribed = metadata.isSubscribed === true;
 
+    // ---- Resolve ONE reusable Stripe customer for this user ----
+    // This is the key fix: never let Stripe auto-create a new customer
+    // on each checkout (which previously caused duplicate customers).
+    let customerId = metadata.stripeCustomerId;
+
+    if (!customerId) {
+      // Try to find an existing customer by email before making a new one.
+      const existing = await stripe.customers.list({ email, limit: 1 });
+      if (existing.data.length > 0) {
+        customerId = existing.data[0].id;
+      } else {
+        const created = await stripe.customers.create({
+          email,
+          metadata: { userId },
+        });
+        customerId = created.id;
+      }
+      // Persist it so every future checkout/portal call reuses the same customer.
+      await client.users.updateUserMetadata(userId, {
+        privateMetadata: { ...metadata, stripeCustomerId: customerId },
+      });
+    }
+
     // If the user already has an active subscription, UPGRADE/DOWNGRADE it
     // instead of creating a brand new one (prevents double-charging).
     if (isSubscribed && existingSubscriptionId) {
@@ -26,8 +49,6 @@ export default async function handler(req, res) {
       try {
         subscription = await stripe.subscriptions.retrieve(existingSubscriptionId);
       } catch (err) {
-        // Subscription no longer exists in Stripe (e.g. already canceled) —
-        // fall through to creating a fresh checkout session below.
         subscription = null;
       }
 
@@ -40,16 +61,13 @@ export default async function handler(req, res) {
           metadata: { userId, plan },
         });
 
-        // Update Clerk immediately — no need to wait for the webhook on a
-        // plan swap, since there's no new checkout.session.completed event.
         await client.users.updateUserMetadata(userId, {
           privateMetadata: {
             ...metadata,
+            stripeCustomerId: customerId,
             plan,
             isSubscribed: true,
             stripeSubscriptionId: updatedSubscription.id,
-            // Intentionally NOT resetting viralityCount / rehookCount /
-            // conversionCount — usage carries over across plan changes.
           },
         });
 
@@ -57,12 +75,13 @@ export default async function handler(req, res) {
       }
     }
 
-    // No active subscription — create a normal new checkout session.
+    // No active subscription — create a normal new checkout session,
+    // attached to the reusable customer (NOT customer_email).
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       mode: 'subscription',
       line_items: [{ price: priceId, quantity: 1 }],
-      customer_email: email,
+      customer: customerId,
       success_url: `${req.headers.origin}/?success=true&plan=${plan}`,
       cancel_url: `${req.headers.origin}/pricing`,
       allow_promotion_codes: true,

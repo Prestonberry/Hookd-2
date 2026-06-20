@@ -39,20 +39,59 @@ export default async function handler(req, res) {
         const users = await client.users.getUserList({ emailAddress: [email] });
         if (users.data.length > 0) {
           const user = users.data[0];
+          const existingMetadata = user.privateMetadata || {};
+          const wasAlreadySubscribed = existingMetadata.isSubscribed === true;
+
           await client.users.updateUserMetadata(user.id, {
             privateMetadata: {
-              ...user.privateMetadata,
+              ...existingMetadata,
               isSubscribed: true,
               plan,
               stripeCustomerId: customerId,
               stripeSubscriptionId: subscriptionId,
-              subscribedAt: new Date().toISOString(),
-              viralityCount: 0,
-              rehookCount: 0,
-              conversionCount: 0,
+              subscribedAt: existingMetadata.subscribedAt || new Date().toISOString(),
+              // Only reset usage counts for a genuinely NEW subscription.
+              // If the user was already subscribed (this is an upgrade that
+              // happened to go through checkout rather than the portal),
+              // preserve their existing usage so they don't get a free reset.
+              viralityCount: wasAlreadySubscribed ? (existingMetadata.viralityCount || 0) : 0,
+              rehookCount: wasAlreadySubscribed ? (existingMetadata.rehookCount || 0) : 0,
+              conversionCount: wasAlreadySubscribed ? (existingMetadata.conversionCount || 0) : 0,
             }
           });
-          console.log(`Subscribed user: ${email} on plan: ${plan}`);
+          console.log(`Subscribed user: ${email} on plan: ${plan} (was already subscribed: ${wasAlreadySubscribed})`);
+        }
+      }
+    }
+
+    // Fires when a subscription is upgraded/downgraded directly in Stripe
+    // (e.g. via the Customer Portal) rather than through a new checkout.
+    if (event.type === 'customer.subscription.updated') {
+      const subscription = event.data.object;
+      const customerId = subscription.customer;
+      const priceId = subscription.items.data[0]?.price?.id;
+
+      const PRICE_TO_PLAN = {
+        [process.env.STRIPE_PRICE_CREATOR]: 'creator',
+        [process.env.STRIPE_PRICE_PRO]: 'pro',
+        [process.env.STRIPE_PRICE_AGENCY]: 'agency',
+      };
+      const newPlan = PRICE_TO_PLAN[priceId];
+
+      if (newPlan && subscription.status === 'active') {
+        const users = await client.users.getUserList();
+        const user = users.data.find(u => u.privateMetadata?.stripeCustomerId === customerId);
+
+        if (user && user.privateMetadata?.plan !== newPlan) {
+          await client.users.updateUserMetadata(user.id, {
+            privateMetadata: {
+              ...user.privateMetadata,
+              plan: newPlan,
+              isSubscribed: true,
+              // Usage counts intentionally left untouched here too.
+            }
+          });
+          console.log(`Plan changed via portal for ${user.emailAddresses[0]?.emailAddress}: now on ${newPlan}`);
         }
       }
     }

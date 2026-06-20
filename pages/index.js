@@ -755,7 +755,7 @@ export default function Home() {
         .tool-hero { text-align: center; margin-bottom: 32px; }
         .tool-hero h2 { font-family: 'Archivo Black', sans-serif; font-size: 32px; font-weight: 800; letter-spacing: -1px; margin-bottom: 12px; color: #2B2018; }
         .tool-hero p { color: #666; font-size: 15px; line-height: 1.7; max-width: 500px; margin: 0 auto; }
-        .upload-zone { border: 2px dashed #C9B8A2; border-radius: 16px; padding: 36px 40px; text-align: center; cursor: pointer; transition: all 0.2s; background: #F4EEE5; }
+        .upload-zone { border: 2px solid #C9B8A2; border-radius: 16px; padding: 36px 40px; text-align: center; cursor: pointer; transition: all 0.2s; background: #F4EEE5; }
         .upload-zone:hover, .upload-zone.drag-over { border-color: #8B4A2F; background: rgba(139,74,47,0.04); }
         .upload-icon { width: 48px; height: 48px; background: #E2D7C8; border-radius: 14px; display: flex; align-items: center; justify-content: center; margin: 0 auto 14px; }
         .upload-zone h3 { font-family: 'Archivo Black', sans-serif; font-size: 20px; font-weight: 700; margin-bottom: 8px; color: #2B2018; }

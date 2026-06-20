@@ -19,8 +19,16 @@ export default async function handler(req, res) {
     const user = await client.users.getUser(userId);
     const metadata = user.privateMetadata || {};
 
-    const isSubscribed = metadata.isSubscribed === true;
-    const plan = metadata.plan || null;
+    // A subscription marked "cancel at period end" stays fully active
+    // (isSubscribed stays true) until accessUntil actually passes. This
+    // check is a safety net in case the real subscription.deleted webhook
+    // event is ever delayed or missed — once the date passes, we treat
+    // the user as unsubscribed even if Clerk metadata hasn't caught up yet.
+    const accessUntil = metadata.accessUntil ? new Date(metadata.accessUntil) : null;
+    const pastAccessWindow = accessUntil ? new Date() > accessUntil : false;
+
+    const isSubscribed = metadata.isSubscribed === true && !pastAccessWindow;
+    const plan = isSubscribed ? (metadata.plan || null) : null;
     const limits = plan ? PLAN_LIMITS[plan] : null;
 
     const viralityCount = Number(metadata.viralityCount) || 0;
@@ -44,6 +52,8 @@ export default async function handler(req, res) {
       return res.status(200).json({
         isSubscribed: true,
         plan,
+        cancelAtPeriodEnd: metadata.cancelAtPeriodEnd === true,
+        accessUntil: metadata.accessUntil || null,
         viralityRemaining: Math.max(0, limits.virality - viralityCount),
         rehookRemaining: Math.max(0, limits.rehook - rehookCount),
         conversionRemaining: Math.max(0, limits.conversion - conversionCount),
@@ -75,7 +85,7 @@ export default async function handler(req, res) {
         });
       }
 
-      // Subscribed — check per-type limits
+      // Subscribed (and within accessUntil window if applicable) — check per-type limits
       if (mode === 'analyze') {
         if (viralityCount >= limits.virality) {
           return res.status(200).json({ isSubscribed: true, canAnalyze: false, reason: 'virality_limit_reached' });

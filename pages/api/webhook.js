@@ -50,10 +50,8 @@ export default async function handler(req, res) {
               stripeCustomerId: customerId,
               stripeSubscriptionId: subscriptionId,
               subscribedAt: existingMetadata.subscribedAt || new Date().toISOString(),
-              // Only reset usage counts for a genuinely NEW subscription.
-              // If the user was already subscribed (this is an upgrade that
-              // happened to go through checkout rather than the portal),
-              // preserve their existing usage so they don't get a free reset.
+              cancelAtPeriodEnd: false,
+              accessUntil: null,
               viralityCount: wasAlreadySubscribed ? (existingMetadata.viralityCount || 0) : 0,
               rehookCount: wasAlreadySubscribed ? (existingMetadata.rehookCount || 0) : 0,
               conversionCount: wasAlreadySubscribed ? (existingMetadata.conversionCount || 0) : 0,
@@ -64,8 +62,12 @@ export default async function handler(req, res) {
       }
     }
 
-    // Fires when a subscription is upgraded/downgraded directly in Stripe
-    // (e.g. via the Customer Portal) rather than through a new checkout.
+    // Fires when a subscription is upgraded/downgraded, OR when it's
+    // marked to cancel at period end (status stays "active" with
+    // cancel_at_period_end: true), OR when a scheduled cancellation is
+    // undone. We track cancel_at_period_end here so we know NOT to revoke
+    // access until the real end date — the actual revocation happens in
+    // customer.subscription.deleted below, only once Stripe truly ends it.
     if (event.type === 'customer.subscription.updated') {
       const subscription = event.data.object;
       const customerId = subscription.customer;
@@ -78,24 +80,48 @@ export default async function handler(req, res) {
       };
       const newPlan = PRICE_TO_PLAN[priceId];
 
-      if (newPlan && subscription.status === 'active') {
-        const users = await client.users.getUserList();
-        const user = users.data.find(u => u.privateMetadata?.stripeCustomerId === customerId);
+      const users = await client.users.getUserList();
+      const user = users.data.find(u => u.privateMetadata?.stripeCustomerId === customerId);
 
-        if (user && user.privateMetadata?.plan !== newPlan) {
-          await client.users.updateUserMetadata(user.id, {
-            privateMetadata: {
-              ...user.privateMetadata,
-              plan: newPlan,
-              isSubscribed: true,
-              // Usage counts intentionally left untouched here too.
-            }
-          });
-          console.log(`Plan changed via portal for ${user.emailAddresses[0]?.emailAddress}: now on ${newPlan}`);
+      if (user) {
+        const existingMetadata = user.privateMetadata || {};
+        const updates = { ...existingMetadata };
+        let changed = false;
+
+        // Plan swap (upgrade/downgrade) while subscription is still active.
+        if (newPlan && subscription.status === 'active' && existingMetadata.plan !== newPlan) {
+          updates.plan = newPlan;
+          updates.isSubscribed = true;
+          changed = true;
+        }
+
+        // Track whether this subscription is scheduled to cancel at period
+        // end, and exactly when that period ends, WITHOUT revoking access
+        // yet. Access is only revoked when subscription.deleted actually fires.
+        if (subscription.cancel_at_period_end) {
+          updates.cancelAtPeriodEnd = true;
+          updates.accessUntil = subscription.current_period_end
+            ? new Date(subscription.current_period_end * 1000).toISOString()
+            : null;
+          changed = true;
+        } else if (existingMetadata.cancelAtPeriodEnd) {
+          // Cancellation was undone (e.g. user resubscribed before period end).
+          updates.cancelAtPeriodEnd = false;
+          updates.accessUntil = null;
+          changed = true;
+        }
+
+        if (changed) {
+          await client.users.updateUserMetadata(user.id, { privateMetadata: updates });
+          console.log(`Subscription updated for ${user.emailAddresses[0]?.emailAddress}: plan=${updates.plan || existingMetadata.plan}, cancelAtPeriodEnd=${!!updates.cancelAtPeriodEnd}`);
         }
       }
     }
 
+    // This fires only when Stripe actually ends the subscription for good —
+    // either because "cancel immediately" was used, or because a
+    // "cancel at period end" subscription has now reached that end date.
+    // This is the ONLY place access should be revoked.
     if (event.type === 'customer.subscription.deleted') {
       const subscription = event.data.object;
       const customerId = subscription.customer;
@@ -104,15 +130,37 @@ export default async function handler(req, res) {
       const user = users.data.find(u => u.privateMetadata?.stripeCustomerId === customerId);
 
       if (user) {
-        await client.users.updateUserMetadata(user.id, {
-          privateMetadata: {
-            ...user.privateMetadata,
-            isSubscribed: false,
-            plan: null,
-            cancelledAt: new Date().toISOString(),
-          }
-        });
-        console.log(`Cancelled subscription for user: ${user.emailAddresses[0]?.emailAddress}`);
+        // Safety check: if this user has ANOTHER active subscription on a
+        // different Stripe customer (a leftover from the old duplicate-
+        // customer bug), don't revoke access — they're still paying via
+        // that other subscription.
+        let stillHasOtherActiveSub = false;
+        try {
+          const otherSubs = await stripe.subscriptions.list({
+            customer: customerId,
+            status: 'active',
+            limit: 5,
+          });
+          stillHasOtherActiveSub = otherSubs.data.some(s => s.id !== subscription.id);
+        } catch (e) {
+          console.error('Error checking for other active subscriptions:', e.message);
+        }
+
+        if (!stillHasOtherActiveSub) {
+          await client.users.updateUserMetadata(user.id, {
+            privateMetadata: {
+              ...user.privateMetadata,
+              isSubscribed: false,
+              plan: null,
+              cancelAtPeriodEnd: false,
+              accessUntil: null,
+              cancelledAt: new Date().toISOString(),
+            }
+          });
+          console.log(`Subscription truly ended for user: ${user.emailAddresses[0]?.emailAddress}`);
+        } else {
+          console.log(`Subscription deleted for ${user.emailAddresses[0]?.emailAddress}, but another active subscription exists — access preserved.`);
+        }
       }
     }
   } catch (err) {

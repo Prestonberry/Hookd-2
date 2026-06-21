@@ -712,6 +712,7 @@ export default function Home() {
           <a href="/terms">Terms</a>
           <a href="/privacy">Privacy</a>
           <a href="/accessibility">Accessibility</a>
+          <a href="/contact">Contact</a>
         </div>
       </footer>
 

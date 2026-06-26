@@ -312,24 +312,14 @@ export default function Home() {
             <h2>You've hit your limit</h2>
             <p>Upgrade to keep analyzing and making content that performs.</p>
             <div className="paywall-plans">
-              <button className="paywall-plan" onClick={() => router.push('/pricing')}>
-                <div className="paywall-plan-name">Creator</div>
-                <div className="paywall-plan-price">$14.99/mo</div>
-                <div className="paywall-plan-desc">20 analyses/month</div>
-              </button>
               <button className="paywall-plan highlighted" onClick={() => router.push('/pricing')}>
-                <div className="paywall-popular">Most Popular</div>
-                <div className="paywall-plan-name">Pro</div>
-                <div className="paywall-plan-price">$49.99/mo</div>
-                <div className="paywall-plan-desc">50 analyses + Conversion Score</div>
-              </button>
-              <button className="paywall-plan" onClick={() => router.push('/pricing')}>
-                <div className="paywall-plan-name">Agency</div>
-                <div className="paywall-plan-price">$99.99/mo</div>
-                <div className="paywall-plan-desc">150 analyses/month</div>
+                <div className="paywall-popular">All Access</div>
+                <div className="paywall-plan-name">HookD</div>
+                <div className="paywall-plan-price">$14.99/mo</div>
+                <div className="paywall-plan-desc">20 Virality · 15 Conversion · 100 Re-Hooks</div>
               </button>
             </div>
-            <button className="modal-btn-primary" onClick={() => router.push('/pricing')}>See All Plans</button>
+            <button className="modal-btn-primary" onClick={() => router.push('/pricing')}>Get Started</button>
             <button className="modal-dismiss" onClick={() => setShowPaywall(false)}>Maybe later</button>
           </div>
         </div>

@@ -2,10 +2,16 @@ import { getAuth, clerkClient } from '@clerk/nextjs/server';
 
 const FREE_LIMIT = 3;
 
+// Single all-access plan. Any active subscription resolves to these limits.
+const SINGLE_PLAN_LIMITS = { virality: 20, rehook: 100, conversion: 15 };
+
 const PLAN_LIMITS = {
-  creator: { virality: 20, rehook: 20, conversion: 0 },
-  pro: { virality: 50, rehook: 50, conversion: 20 },
-  agency: { virality: 150, rehook: 150, conversion: 75 },
+  creator: SINGLE_PLAN_LIMITS,
+  // Legacy plan names kept as aliases so any existing subscribers on old
+  // plan metadata still resolve to the current single-plan limits rather
+  // than breaking. All paid users now get the same 20/15/100 access.
+  pro: SINGLE_PLAN_LIMITS,
+  agency: SINGLE_PLAN_LIMITS,
 };
 
 export default async function handler(req, res) {
@@ -28,8 +34,10 @@ export default async function handler(req, res) {
     const pastAccessWindow = accessUntil ? new Date() > accessUntil : false;
 
     const isSubscribed = metadata.isSubscribed === true && !pastAccessWindow;
-    const plan = isSubscribed ? (metadata.plan || null) : null;
-    const limits = plan ? PLAN_LIMITS[plan] : null;
+    // Any active subscriber gets the single plan's limits, regardless of
+    // which plan name is stored in their metadata.
+    const limits = isSubscribed ? SINGLE_PLAN_LIMITS : null;
+    const plan = isSubscribed ? 'creator' : null;
 
     const viralityCount = Number(metadata.viralityCount) || 0;
     const rehookCount = Number(metadata.rehookCount) || 0;

@@ -2,69 +2,30 @@ import Head from 'next/head';
 import { useState } from 'react';
 import { useRouter } from 'next/router';
 
-const plans = [
-  {
-    id: 'creator',
-    name: 'Creator',
-    price: 14.99,
-    priceId: 'price_1ThopBKHHjJwCkb0CIazXGvV',
-    emoji: '',
-    description: 'For individual creators serious about growth',
-    features: [
-      '20 Virality Score analyses/month',
-      '20 Re-Hook Me rewrites/month',
-      'Scroll Score + Follower Score',
-      'Top 5 ranked findings per video',
-      'Priority action list',
-    ],
-    cta: 'Start Creating',
-    highlight: false,
-  },
-  {
-    id: 'pro',
-    name: 'Pro',
-    price: 49.99,
-    priceId: 'price_1TisuMKHHjJwCkb0TvtvRRap',
-    emoji: '',
-    description: 'For creators and businesses who need conversion insights',
-    features: [
-      '50 Virality Score analyses/month',
-      '50 Re-Hook Me rewrites/month',
-      '20 Conversion Score analyses/month',
-      'Full funnel stage analysis',
-      'Campaign-aware feedback',
-      'All Creator features included',
-    ],
-    cta: 'Go Pro',
-    highlight: true,
-  },
-  {
-    id: 'agency',
-    name: 'Agency',
-    price: 99.99,
-    priceId: 'price_1Tisv9KHHjJwCkb0A982nJB9',
-    emoji: '',
-    description: 'For agencies and teams managing multiple clients',
-    features: [
-      '150 Virality Score analyses/month',
-      '150 Re-Hook Me rewrites/month',
-      '75 Conversion Score analyses/month',
-      'Full funnel stage analysis',
-      'Campaign-aware feedback',
-      'Priority support',
-      'All Pro features included',
-    ],
-    cta: 'Scale Up',
-    highlight: false,
-  },
-];
+const plan = {
+  id: 'creator',
+  name: 'HookD',
+  price: 14.99,
+  priceId: 'price_1ThopBKHHjJwCkb0CIazXGvV',
+  description: 'Everything you need to make content that performs',
+  features: [
+    '20 Virality Score analyses/month',
+    '15 Conversion Score analyses/month',
+    '100 Re-Hook Me rewrites/month',
+    'Scroll Score + Follower Score',
+    'Full funnel stage analysis',
+    'Top 5 ranked findings per video',
+    'Priority action list',
+  ],
+  cta: 'Get Started',
+};
 
 export default function Pricing() {
-  const [loading, setLoading] = useState(null);
+  const [loading, setLoading] = useState(false);
   const router = useRouter();
 
-  const handleCheckout = async (plan) => {
-    setLoading(plan.id);
+  const handleCheckout = async () => {
+    setLoading(true);
     try {
       const res = await fetch('/api/create-checkout', {
         method: 'POST',
@@ -76,7 +37,7 @@ export default function Pricing() {
     } catch (err) {
       console.error(err);
     } finally {
-      setLoading(null);
+      setLoading(false);
     }
   };
 
@@ -95,39 +56,36 @@ export default function Pricing() {
 
       <section className="hero">
         <div className="hero-eyebrow">Simple, Transparent Pricing</div>
-        <h1>Invest in your <em>growth</em></h1>
-        <p>No hidden fees. No long term contracts. Cancel anytime. Every plan includes a 3-analysis free trial.</p>
+        <h1>One plan. <em>Everything</em> included.</h1>
+        <p>No tiers, no upsells, no hidden fees. Cancel anytime. Every account starts with a 3-analysis free trial.</p>
       </section>
 
       <section className="plans-section">
-        <div className="plans-grid">
-          {plans.map((plan) => (
-            <div key={plan.id} className={`plan-card ${plan.highlight ? 'highlighted' : ''}`}>
-              {plan.highlight && <div className="popular-badge">Most Popular</div>}
-              <div className="plan-emoji">{plan.emoji}</div>
-              <div className="plan-name">{plan.name}</div>
-              <div className="plan-desc">{plan.description}</div>
-              <div className="plan-price">
-                <span className="price-dollar">$</span>
-                <span className="price-amount">{plan.price}</span>
-                <span className="price-period">/month</span>
-              </div>
-              <ul className="plan-features">
-                {plan.features.map((f, i) => (
-                  <li key={i}>
-                    <span className="check">✓</span> {f}
-                  </li>
-                ))}
-              </ul>
-              <button
-                className={`plan-btn ${plan.highlight ? 'plan-btn-primary' : 'plan-btn-secondary'}`}
-                onClick={() => handleCheckout(plan)}
-                disabled={loading === plan.id}
-              >
-                {loading === plan.id ? 'Loading...' : plan.cta}
-              </button>
+        <div className="single-plan-wrap">
+          <div className="plan-card highlighted">
+            <div className="popular-badge">All Access</div>
+            <div className="plan-name">{plan.name}</div>
+            <div className="plan-desc">{plan.description}</div>
+            <div className="plan-price">
+              <span className="price-dollar">$</span>
+              <span className="price-amount">{plan.price}</span>
+              <span className="price-period">/month</span>
             </div>
-          ))}
+            <ul className="plan-features">
+              {plan.features.map((f, i) => (
+                <li key={i}>
+                  <span className="check">✓</span> {f}
+                </li>
+              ))}
+            </ul>
+            <button
+              className="plan-btn plan-btn-primary"
+              onClick={handleCheckout}
+              disabled={loading}
+            >
+              {loading ? 'Loading...' : plan.cta}
+            </button>
+          </div>
         </div>
 
         <div className="guarantee">
@@ -161,13 +119,12 @@ export default function Pricing() {
         .hero h1 em { font-style: normal; color: #8B4A2F; }
         .hero p { font-size: 15px; color: #5C5043; line-height: 1.7; font-family: 'Inter', sans-serif; }
         .plans-section { max-width: 1100px; margin: 0 auto; padding: 0 40px 80px; }
-        .plans-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 40px; }
-        .plan-card { background: #F4EEE5; border: 1px solid #DDD0BF; border-radius: 16px; padding: 32px 28px; position: relative; display: flex; flex-direction: column; transition: all 0.2s; }
+        .single-plan-wrap { display: flex; justify-content: center; margin-bottom: 40px; }
+        .plan-card { background: #F4EEE5; border: 1px solid #DDD0BF; border-radius: 16px; padding: 40px 36px; position: relative; display: flex; flex-direction: column; transition: all 0.2s; width: 100%; max-width: 440px; }
         .plan-card:hover { border-color: #C9B8A2; transform: translateY(-3px); }
         .plan-card.highlighted { border-color: #8B4A2F; border-width: 2px; background: #F4EEE5; }
         .popular-badge { position: absolute; top: -12px; left: 50%; transform: translateX(-50%); background: #8B4A2F; color: #EDE6DC; font-size: 11px; font-weight: 700; padding: 4px 16px; border-radius: 20px; letter-spacing: 0.5px; text-transform: uppercase; white-space: nowrap; font-family: 'JetBrains Mono', monospace; }
-        .plan-emoji { font-size: 32px; margin-bottom: 16px; }
-        .plan-name { font-family: 'Archivo Black', sans-serif; font-size: 22px; font-weight: 400; margin-bottom: 8px; color: #2B2018; }
+        .plan-name { font-family: 'Archivo Black', sans-serif; font-size: 26px; font-weight: 400; margin-bottom: 8px; color: #2B2018; }
         .plan-desc { font-size: 13px; color: #8B7A68; line-height: 1.5; margin-bottom: 24px; font-family: 'Inter', sans-serif; }
         .plan-price { display: flex; align-items: baseline; gap: 2px; margin-bottom: 28px; }
         .price-dollar { font-size: 20px; font-weight: 600; color: #8B7A68; }
@@ -179,8 +136,6 @@ export default function Pricing() {
         .plan-btn { width: 100%; padding: 16px; border-radius: 10px; font-family: 'Archivo Black', sans-serif; font-size: 15px; font-weight: 400; cursor: pointer; transition: all 0.2s; border: none; letter-spacing: -0.3px; }
         .plan-btn-primary { background: #8B4A2F; color: #EDE6DC; }
         .plan-btn-primary:hover { background: #743C26; }
-        .plan-btn-secondary { background: transparent; color: #2B2018; border: 1px solid #C9B8A2; }
-        .plan-btn-secondary:hover { border-color: #8B4A2F; color: #8B4A2F; }
         .plan-btn:disabled { opacity: 0.6; cursor: not-allowed; }
         .guarantee { display: flex; align-items: center; gap: 16px; background: #F4EEE5; border: 1px solid #DDD0BF; border-radius: 14px; padding: 20px 24px; margin-bottom: 20px; }
         .guarantee-icon { font-size: 28px; }
@@ -192,7 +147,6 @@ export default function Pricing() {
         .affiliate-cta-btn { background: #8B4A2F; color: #EDE6DC; border: none; padding: 12px 24px; border-radius: 8px; font-family: 'Archivo Black', sans-serif; font-size: 13px; font-weight: 400; cursor: pointer; text-decoration: none; white-space: nowrap; letter-spacing: -0.3px; }
         .affiliate-cta-btn:hover { background: #743C26; }
         @media (max-width: 768px) {
-          .plans-grid { grid-template-columns: 1fr; }
           nav { padding: 16px 20px; }
           .hero { padding: 48px 20px 40px; }
           .plans-section { padding: 0 20px 60px; }

@@ -33,6 +33,7 @@ export default async function handler(req, res) {
       const email = session.customer_details?.email || session.customer_email;
       const customerId = session.customer;
       const subscriptionId = session.subscription;
+      // Single plan — everyone resolves to 'creator'.
       const plan = session.metadata?.plan || 'creator';
 
       if (email) {
@@ -62,23 +63,18 @@ export default async function handler(req, res) {
       }
     }
 
-    // Fires when a subscription is upgraded/downgraded, OR when it's
-    // marked to cancel at period end (status stays "active" with
-    // cancel_at_period_end: true), OR when a scheduled cancellation is
-    // undone. We track cancel_at_period_end here so we know NOT to revoke
-    // access until the real end date — the actual revocation happens in
-    // customer.subscription.deleted below, only once Stripe truly ends it.
+    // Fires when a subscription is marked to cancel at period end (status
+    // stays "active" with cancel_at_period_end: true), or when a scheduled
+    // cancellation is undone. We track cancel_at_period_end here so we know
+    // NOT to revoke access until the real end date — the actual revocation
+    // happens in customer.subscription.deleted below, only once Stripe
+    // truly ends it.
+    //
+    // Note: with a single plan there are no upgrades/downgrades to track,
+    // so this block only handles cancellation scheduling, not plan swaps.
     if (event.type === 'customer.subscription.updated') {
       const subscription = event.data.object;
       const customerId = subscription.customer;
-      const priceId = subscription.items.data[0]?.price?.id;
-
-      const PRICE_TO_PLAN = {
-        [process.env.STRIPE_PRICE_CREATOR]: 'creator',
-        [process.env.STRIPE_PRICE_PRO]: 'pro',
-        [process.env.STRIPE_PRICE_AGENCY]: 'agency',
-      };
-      const newPlan = PRICE_TO_PLAN[priceId];
 
       const users = await client.users.getUserList();
       const user = users.data.find(u => u.privateMetadata?.stripeCustomerId === customerId);
@@ -87,13 +83,6 @@ export default async function handler(req, res) {
         const existingMetadata = user.privateMetadata || {};
         const updates = { ...existingMetadata };
         let changed = false;
-
-        // Plan swap (upgrade/downgrade) while subscription is still active.
-        if (newPlan && subscription.status === 'active' && existingMetadata.plan !== newPlan) {
-          updates.plan = newPlan;
-          updates.isSubscribed = true;
-          changed = true;
-        }
 
         // Track whether this subscription is scheduled to cancel at period
         // end, and exactly when that period ends, WITHOUT revoking access
@@ -113,7 +102,7 @@ export default async function handler(req, res) {
 
         if (changed) {
           await client.users.updateUserMetadata(user.id, { privateMetadata: updates });
-          console.log(`Subscription updated for ${user.emailAddresses[0]?.emailAddress}: plan=${updates.plan || existingMetadata.plan}, cancelAtPeriodEnd=${!!updates.cancelAtPeriodEnd}`);
+          console.log(`Subscription updated for ${user.emailAddresses[0]?.emailAddress}: cancelAtPeriodEnd=${!!updates.cancelAtPeriodEnd}`);
         }
       }
     }

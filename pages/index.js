@@ -117,8 +117,15 @@ export default function Home() {
       body: JSON.stringify({ mode }),
     });
     const data = await res.json();
-    setUsageData(data);
+    // Merge rather than replace: the POST response only returns a few
+    // fields (isSubscribed, canAnalyze, plan), so replacing would wipe the
+    // remaining-count fields from the GET and leave usageData in a stale,
+    // partially-undefined state that breaks the next action until refresh.
+    setUsageData(prev => ({ ...prev, ...data }));
     if (!data.canAnalyze) { setShowPaywall(true); return false; }
+    // Re-sync the full usage object in the background so remaining counts
+    // (nav badge, limits) stay accurate after this action.
+    fetch('/api/usage').then(r => r.json()).then(fresh => setUsageData(fresh)).catch(() => {});
     return true;
   };
 
@@ -695,7 +702,7 @@ export default function Home() {
                 </button>
                 <div className="hook-regen-note">Uses 1 of your monthly Re-Hooks</div>
               </div>
-              <button className="retry-btn" style={{ width: '100%', marginTop: 16 }} onClick={() => { setHookResults(null); setHookScript(''); }}>Rewrite Another Hook</button>
+              <button className="retry-btn" style={{ width: '100%', marginTop: 16 }} onClick={() => { setHookResults(null); setHookScript(''); setHookContext(''); setHookLoading(false); }}>Rewrite Another Hook</button>
             </div>
           )}
         </section>

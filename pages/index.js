@@ -474,13 +474,17 @@ export default function Home() {
               </div>
               <div className="scores-row">
                 <div className="score-card">
-                  <div className="score-number" style={{ color: scoreColor(results.score) }}>{results.score}</div>
+                  <div className="score-number" style={{ color: scoreColor(results.score) }}>
+                    {results.score}<span className="score-denom">/100</span>
+                  </div>
                   <div className="score-title">Scroll Score</div>
                   <div className="score-subtitle">How likely this stops the scroll</div>
                   <div className="score-label-badge" style={{ background: scoreColor(results.score) + '22', color: scoreColor(results.score) }}>{results.scoreLabel}</div>
                 </div>
                 <div className="score-card">
-                  <div className="score-number" style={{ color: scoreColor(results.followerScore) }}>{results.followerScore}</div>
+                  <div className="score-number" style={{ color: scoreColor(results.followerScore) }}>
+                    {results.followerScore}<span className="score-denom">/100</span>
+                  </div>
                   <div className="score-title">Follower Score</div>
                   <div className="score-subtitle">How likely this converts to follows</div>
                   <div className="score-label-badge" style={{ background: scoreColor(results.followerScore) + '22', color: scoreColor(results.followerScore) }}>{results.followerScoreLabel}</div>
@@ -612,13 +616,17 @@ export default function Home() {
               </div>
               <div className="scores-row">
                 <div className="score-card">
-                  <div className="score-number" style={{ color: scoreColor(convResults.conversionScore) }}>{convResults.conversionScore}</div>
+                  <div className="score-number" style={{ color: scoreColor(convResults.conversionScore) }}>
+                    {convResults.conversionScore}<span className="score-denom">/100</span>
+                  </div>
                   <div className="score-title">Conversion Score</div>
                   <div className="score-subtitle">How optimized this is for your funnel stage</div>
                   <div className="score-label-badge" style={{ background: scoreColor(convResults.conversionScore) + '22', color: scoreColor(convResults.conversionScore) }}>{convResults.conversionScoreLabel}</div>
                 </div>
                 <div className="score-card">
-                  <div className="score-number" style={{ color: scoreColor(convResults.funnelFitScore) }}>{convResults.funnelFitScore}</div>
+                  <div className="score-number" style={{ color: scoreColor(convResults.funnelFitScore) }}>
+                    {convResults.funnelFitScore}<span className="score-denom">/100</span>
+                  </div>
                   <div className="score-title">Funnel Fit Score</div>
                   <div className="score-subtitle">How well this matches your funnel stage</div>
                   <div className="score-label-badge" style={{ background: scoreColor(convResults.funnelFitScore) + '22', color: scoreColor(convResults.funnelFitScore) }}>{convResults.funnelFitScoreLabel}</div>
@@ -748,9 +756,7 @@ export default function Home() {
         .flank-card { position: relative; background: transparent; border: none; padding: 0; transition: all 0.2s; cursor: default; }
         .flank-card-name { font-family: 'Archivo Black', sans-serif; font-size: 13px; font-weight: 400; margin-bottom: 6px; color: #2B2018; letter-spacing: 0.3px; padding-bottom: 6px; display: inline-block; border-bottom: 2px solid #8B4A2F; }
         .flank-card-desc { font-size: 11px; color: #6B5D4F; line-height: 1.5; }
-        /* connector tick: right column points left toward center */
         .flank-col:last-child .flank-card::before { content: ''; position: absolute; top: 9px; left: -28px; width: 24px; height: 2px; background: #C9B8A2; }
-        /* connector tick: left column points right toward center */
         .flank-col:first-child .flank-card::before { content: ''; position: absolute; top: 9px; right: -28px; width: 24px; height: 2px; background: #C9B8A2; }
         .tool-section { max-width: 760px; margin: 0 auto; padding: 24px 40px 48px; }
         .tool-hero { text-align: center; margin-bottom: 32px; }
@@ -810,6 +816,7 @@ export default function Home() {
         .scores-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 32px; }
         .score-card { background: #F4EEE5; border: 1px solid #DDD0BF; border-radius: 14px; padding: 24px; text-align: center; }
         .score-number { font-family: 'Archivo Black', sans-serif; font-size: 52px; font-weight: 800; line-height: 1; margin-bottom: 8px; }
+        .score-denom { font-size: 22px; font-weight: 400; opacity: 0.45; margin-left: 2px; }
         .score-title { font-family: 'Archivo Black', sans-serif; font-size: 15px; font-weight: 700; margin-bottom: 4px; color: #2B2018; }
         .score-subtitle { font-size: 12px; color: #888; line-height: 1.4; margin-bottom: 12px; }
         .score-label-badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }

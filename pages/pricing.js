@@ -22,10 +22,12 @@ const plan = {
 
 export default function Pricing() {
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const router = useRouter();
 
   const handleCheckout = async () => {
     setLoading(true);
+    setError('');
     try {
       const res = await fetch('/api/create-checkout', {
         method: 'POST',
@@ -33,9 +35,22 @@ export default function Pricing() {
         body: JSON.stringify({ priceId: plan.priceId, plan: plan.id }),
       });
       const data = await res.json();
-      if (data.url) window.location.href = data.url;
+
+      // New checkout session — redirect to Stripe.
+      if (data.url) {
+        window.location.href = data.url;
+        return;
+      }
+      // Existing subscriber being updated in place — redirect to success.
+      if (data.upgraded && data.redirectUrl) {
+        window.location.href = data.redirectUrl;
+        return;
+      }
+      // Anything else means the server returned an error instead of a URL.
+      setError(data.error || 'Could not start checkout. Please try again.');
     } catch (err) {
       console.error(err);
+      setError('Something went wrong. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -85,23 +100,8 @@ export default function Pricing() {
             >
               {loading ? 'Loading...' : plan.cta}
             </button>
+            {error && <div className="checkout-error">{error}</div>}
           </div>
-        </div>
-
-        <div className="guarantee">
-          <div className="guarantee-icon">🛡️</div>
-          <div>
-            <div className="guarantee-title">3 free analyses — no credit card required</div>
-            <div className="guarantee-sub">Try HookD before you commit. Upgrade only when you're ready.</div>
-          </div>
-        </div>
-
-        <div className="affiliate-cta">
-          <div className="affiliate-cta-text">
-            <div className="affiliate-cta-title">Know other creators or agencies?</div>
-            <div className="affiliate-cta-sub">Earn 15% recurring commission every month — forever — for every person you refer.</div>
-          </div>
-          <a href="/affiliates" className="affiliate-cta-btn">Join Affiliate Program →</a>
         </div>
       </section>
 
@@ -137,6 +137,7 @@ export default function Pricing() {
         .plan-btn-primary { background: #8B4A2F; color: #EDE6DC; }
         .plan-btn-primary:hover { background: #743C26; }
         .plan-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+        .checkout-error { margin-top: 14px; background: rgba(139,74,47,0.08); border: 1px solid rgba(139,74,47,0.3); color: #8B4A2F; font-size: 13px; padding: 10px 14px; border-radius: 8px; text-align: center; font-family: 'Inter', sans-serif; }
         .guarantee { display: flex; align-items: center; gap: 16px; background: #F4EEE5; border: 1px solid #DDD0BF; border-radius: 14px; padding: 20px 24px; margin-bottom: 20px; }
         .guarantee-icon { font-size: 28px; }
         .guarantee-title { font-family: 'Archivo Black', sans-serif; font-size: 14px; font-weight: 400; margin-bottom: 4px; color: #2B2018; }

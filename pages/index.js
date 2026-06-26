@@ -216,7 +216,7 @@ export default function Home() {
     finally { setConvLoading(false); setLoadingStep(0); setLoadingMsg(''); }
   };
 
-  const reHook = async () => {
+  const reHook = async (isRegenerate = false) => {
     if (!hookScript.trim()) return;
     if (!isSignedIn) { setShowAuthPrompt(true); return; }
     const canProceed = await checkAndIncrementUsage('rehook');
@@ -226,7 +226,7 @@ export default function Home() {
       const res = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode: 'rehook', script: hookScript, platform: 'TikTok', hookContext, hookType })
+        body: JSON.stringify({ mode: 'rehook', script: hookScript, platform: 'TikTok', hookContext, hookType, regenerate: isRegenerate })
       });
       if (!res.ok) throw new Error('Failed');
       setHookResults(await res.json());
@@ -668,7 +668,7 @@ export default function Home() {
           </div>
           <textarea className="script-input" placeholder={hookType === 'typed' ? 'Paste your typed hook or on-screen text here...' : 'Paste your opening line here...'} value={hookScript} onChange={(e) => setHookScript(e.target.value)} rows={3} />
           <textarea className="script-input" placeholder="Optional: What is this video about? Give context so we preserve your message." value={hookContext} onChange={(e) => setHookContext(e.target.value)} rows={3} style={{ marginTop: 10, borderColor: '#C9B8A2' }} />
-          <button className="analyze-btn" onClick={reHook} disabled={hookLoading || !hookScript.trim()}>{hookLoading ? 'Rewriting...' : 'Rewrite My Hook'}</button>
+          <button className="analyze-btn" onClick={() => reHook(false)} disabled={hookLoading || !hookScript.trim()}>{hookLoading ? 'Rewriting...' : 'Rewrite My Hook'}</button>
           {hookLoading && <div className="loading-state"><div className="loading-spinner" /><h3>Rewriting 5 ways...</h3></div>}
           {hookResults && (
             <div className="hook-results">
@@ -689,7 +689,13 @@ export default function Home() {
                   </div>
                 ))}
               </div>
-              <button className="retry-btn" style={{ width: '100%', marginTop: 24 }} onClick={() => { setHookResults(null); setHookScript(''); }}>Rewrite Another Hook</button>
+              <div className="hook-regenerate-row">
+                <button className="hook-regen-btn" onClick={() => reHook(true)} disabled={hookLoading}>
+                  {hookLoading ? 'Generating...' : '↻ Generate a different set'}
+                </button>
+                <div className="hook-regen-note">Uses 1 of your monthly Re-Hooks</div>
+              </div>
+              <button className="retry-btn" style={{ width: '100%', marginTop: 16 }} onClick={() => { setHookResults(null); setHookScript(''); }}>Rewrite Another Hook</button>
             </div>
           )}
         </section>
@@ -839,6 +845,11 @@ export default function Home() {
         .hook-why { font-size: 13px; color: #888; line-height: 1.6; margin-bottom: 16px; }
         .copy-btn { background: transparent; border: 1px solid #C9B8A2; color: #888; padding: 8px 16px; border-radius: 8px; font-size: 13px; cursor: pointer; transition: all 0.2s; font-family: 'Inter', sans-serif; }
         .copy-btn:hover { border-color: #6B7A4F; color: #6B7A4F; }
+        .hook-regenerate-row { margin-top: 24px; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+        .hook-regen-btn { width: 100%; padding: 16px; background: transparent; color: #8B4A2F; border: 1px solid #8B4A2F; border-radius: 12px; font-family: 'Archivo Black', sans-serif; font-size: 15px; font-weight: 700; cursor: pointer; transition: all 0.2s; }
+        .hook-regen-btn:hover { background: rgba(139,74,47,0.06); }
+        .hook-regen-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .hook-regen-note { font-size: 11px; color: #AAA; font-family: 'Inter', sans-serif; }
         footer { border-top: 1px solid #DDD0BF; padding: 24px 40px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; }
         .footer-left { display: flex; align-items: center; gap: 16px; }
         .footer-logo { font-family: 'Archivo Black', sans-serif; font-weight: 800; font-size: 16px; color: #2B2018; }

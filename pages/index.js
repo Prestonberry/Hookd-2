@@ -98,6 +98,7 @@ export default function Home() {
   const [hookType, setHookType] = useState('talking');
   const [hookResults, setHookResults] = useState(null);
   const [hookLoading, setHookLoading] = useState(false);
+  const [hookError, setHookError] = useState('');
   const [portalLoading, setPortalLoading] = useState(false);
 
   useEffect(() => {
@@ -226,9 +227,19 @@ export default function Home() {
   const reHook = async (isRegenerate = false) => {
     if (!hookScript.trim()) return;
     if (!isSignedIn) { setShowAuthPrompt(true); return; }
+    setHookError('');
     const canProceed = await checkAndIncrementUsage('rehook');
-    if (!canProceed) return;
-    setHookLoading(true); setHookResults(null);
+    if (!canProceed) {
+      // Usage check failed (limit reached or error). For a regenerate this
+      // would otherwise look like a dead button, so surface it.
+      if (isRegenerate) setHookError("You've used all your Re-Hooks for this month.");
+      return;
+    }
+    setHookLoading(true);
+    // On a fresh rewrite, clear old results so the loading state shows.
+    // On a regenerate, KEEP the current results on screen (so the button
+    // doesn't vanish mid-click) until the new set arrives and replaces them.
+    if (!isRegenerate) setHookResults(null);
     try {
       const res = await fetch('/api/analyze', {
         method: 'POST',
@@ -237,7 +248,10 @@ export default function Home() {
       });
       if (!res.ok) throw new Error('Failed');
       setHookResults(await res.json());
-    } catch (err) { console.error(err); }
+    } catch (err) {
+      console.error(err);
+      setHookError('Something went wrong generating hooks. Please try again.');
+    }
     finally { setHookLoading(false); }
   };
 
@@ -701,8 +715,9 @@ export default function Home() {
                   {hookLoading ? 'Generating...' : '↻ Generate a different set'}
                 </button>
                 <div className="hook-regen-note">Uses 1 of your monthly Re-Hooks</div>
+                {hookError && <div className="checkout-error" style={{ marginTop: 4 }}>{hookError}</div>}
               </div>
-              <button className="retry-btn" style={{ width: '100%', marginTop: 16 }} onClick={() => { setHookResults(null); setHookScript(''); setHookContext(''); setHookLoading(false); }}>Rewrite Another Hook</button>
+              <button className="retry-btn" style={{ width: '100%', marginTop: 16 }} onClick={() => { setHookResults(null); setHookScript(''); setHookContext(''); setHookLoading(false); setHookError(''); }}>Rewrite Another Hook</button>
             </div>
           )}
         </section>
@@ -857,6 +872,7 @@ export default function Home() {
         .hook-regen-btn:hover { background: rgba(139,74,47,0.06); }
         .hook-regen-btn:disabled { opacity: 0.5; cursor: not-allowed; }
         .hook-regen-note { font-size: 11px; color: #AAA; font-family: 'Inter', sans-serif; }
+        .checkout-error { background: rgba(139,74,47,0.08); border: 1px solid rgba(139,74,47,0.3); color: #8B4A2F; font-size: 13px; padding: 10px 14px; border-radius: 8px; text-align: center; font-family: 'Inter', sans-serif; }
         footer { border-top: 1px solid #DDD0BF; padding: 24px 40px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; }
         .footer-left { display: flex; align-items: center; gap: 16px; }
         .footer-logo { font-family: 'Archivo Black', sans-serif; font-weight: 800; font-size: 16px; color: #2B2018; }

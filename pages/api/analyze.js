@@ -36,8 +36,8 @@ const VIRALITY_CONTEXT_LABELS = {
 };
 
 const CONVERSION_CONTEXT_LABELS = {
-  desiredAction: 'Exact action wanted from viewer',
-  buyerProfile: 'Buyer and their awareness of the problem',
+  desiredAction: 'Goal of this ad',
+  buyerProfile: 'Buyer and the problem being solved for them',
   mainObjection: 'Main objection stopping the buyer',
   industry: 'Industry/niche',
   offerDetails: 'Offer, price, or promise being sold',

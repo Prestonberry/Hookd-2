@@ -225,7 +225,7 @@ function ContextQuiz({ questions, step, setStep, answers, setAnswers, onComplete
   );
 }
 
-
+export default function Home() {
   const router = useRouter();
   const { isLoaded, isSignedIn, user } = useUser();
   const [activeTab, setActiveTab] = useState('virality');

@@ -21,6 +21,28 @@ const VALID_FUNNEL_STAGES = ['top', 'middle', 'bottom'];
 const VALID_HOOK_TYPES = ['talking', 'typed'];
 const VALID_PLATFORMS = ['TikTok', 'Instagram Reels', 'YouTube Shorts'];
 
+// Keys allowed in the context questionnaire payload, per mode. Anything
+// outside this list is dropped rather than passed through to the prompt.
+const VIRALITY_CONTEXT_KEYS = ['targetAudience', 'videoGoal', 'targetEmotion', 'creatorIdentity', 'recentPattern'];
+const CONVERSION_CONTEXT_KEYS = ['desiredAction', 'buyerProfile', 'mainObjection', 'industry', 'offerDetails'];
+
+// Human-readable labels for building the prompt section, in display order.
+const VIRALITY_CONTEXT_LABELS = {
+  targetAudience: 'Target audience',
+  videoGoal: 'Goal for this video',
+  targetEmotion: 'Emotion the video should create',
+  creatorIdentity: 'Creator identity/brand they are building',
+  recentPattern: "What's worked or flopped recently",
+};
+
+const CONVERSION_CONTEXT_LABELS = {
+  desiredAction: 'Exact action wanted from viewer',
+  buyerProfile: 'Buyer and their awareness of the problem',
+  mainObjection: 'Main objection stopping the buyer',
+  industry: 'Industry/niche',
+  offerDetails: 'Offer, price, or promise being sold',
+};
+
 function isValidBase64(str) {
   if (typeof str !== 'string') return false;
   if (str.length > 500000) return false;
@@ -30,6 +52,27 @@ function isValidBase64(str) {
 function sanitizeString(str, maxLength = 5000) {
   if (typeof str !== 'string') return '';
   return str.slice(0, maxLength).replace(/<[^>]*>/g, '');
+}
+
+// Builds a clean, prompt-ready context block from the raw questionnaire
+// answers sent by the client. Only allow-listed keys are used, every value
+// is sanitized and length-capped, and empty/optional answers are skipped
+// entirely rather than printed as blank lines.
+function buildContextBlock(rawContext, allowedKeys, labels, heading) {
+  if (!rawContext || typeof rawContext !== 'object') return '';
+
+  const lines = [];
+  for (const key of allowedKeys) {
+    const raw = rawContext[key];
+    if (typeof raw !== 'string') continue;
+    const clean = sanitizeString(raw, 300).trim();
+    if (!clean) continue;
+    const label = labels[key] || key;
+    lines.push(`- ${label}: ${clean}`);
+  }
+
+  if (lines.length === 0) return '';
+  return `${heading}\n${lines.join('\n')}\n\nUse this context to make every issue and fix specific to THIS creator's audience, goal, and intent — not generic advice that could apply to any video. Reference their stated goal/audience/objection directly when relevant.`;
 }
 
 export default async function handler(req, res) {
@@ -73,7 +116,8 @@ export default async function handler(req, res) {
     mode, contentType, funnelStage, hookType, platform,
     frames, script, hookContext,
     videoWidth, videoHeight, videoDuration, hasAudio,
-    transcript, wpm, fillerCount, dominantSentiment
+    transcript, wpm, fillerCount, dominantSentiment,
+    context
   } = req.body;
 
   // Input validation
@@ -112,6 +156,8 @@ export default async function handler(req, res) {
   if (videoWidth && (typeof videoWidth !== 'number' || videoWidth > 10000)) return res.status(400).json({ error: 'Invalid video dimensions' });
   if (videoHeight && (typeof videoHeight !== 'number' || videoHeight > 10000)) return res.status(400).json({ error: 'Invalid video dimensions' });
   if (videoDuration && (typeof videoDuration !== 'number' || videoDuration > 3600)) return res.status(400).json({ error: 'Invalid video duration' });
+
+  if (context && typeof context !== 'object') return res.status(400).json({ error: 'Invalid context' });
 
   // Sanitize text inputs
   const safeScript = sanitizeString(script, 2000);
@@ -154,6 +200,13 @@ export default async function handler(req, res) {
 
     if (analysisMode === 'analyze') {
 
+      const creatorContextBlock = buildContextBlock(
+        context,
+        VIRALITY_CONTEXT_KEYS,
+        VIRALITY_CONTEXT_LABELS,
+        'CREATOR-PROVIDED CONTEXT (use this to make feedback specific, not generic):'
+      );
+
       if (frames && frames.length > 0) {
         const frameSubset = frames.slice(0, 20);
         frameSubset.forEach(frame => {
@@ -168,9 +221,10 @@ ${orientationContext}
 ${audioContext}
 ${pacingContext}
 ${contentInstruction}
-
+${creatorContextBlock ? `\n${creatorContextBlock}\n` : ''}
 Identify the TOP 5 most impactful issues. For each provide:
 - category, what_is_wrong, why_it_matters, how_to_fix (2-3 specific dummy-proof sentences)
+${creatorContextBlock ? 'Every issue and fix should connect back to the creator-provided context above — their stated audience, goal, emotion, or identity — instead of generic short-form advice.' : ''}
 
 Also provide:
 - scroll_score: 0-100 how likely this stops the scroll
@@ -209,11 +263,12 @@ RESPOND WITH ONLY VALID JSON:
 
 Here is a raw analysis of a creator's video:
 ${JSON.stringify(parsed1, null, 2)}
-
+${creatorContextBlock ? `\n${creatorContextBlock}\n` : ''}
 Write the final output. For each of the 5 issues:
 - title: short punchy title (no emojis)
 - psychFact: behavioral science explanation (2-3 sentences, no emojis)
 - fix: EXACTLY 2-3 dummy-proof sentences. Precisely what is wrong and exactly what to change. No emojis.
+${creatorContextBlock ? 'Write every fix as if you know this specific creator and their goal — reference their audience, intended emotion, or identity by name where it sharpens the advice.' : ''}
 
 Keep scroll_score and follower_score. Add scoreLabel and followerScoreLabel (Poor/Fair/Good/Strong).
 
@@ -250,6 +305,13 @@ RESPOND WITH ONLY VALID JSON — NO EMOJIS ANYWHERE:
       return res.status(200).json(parsed2);
 
     } else if (analysisMode === 'conversion') {
+
+      const businessContextBlock = buildContextBlock(
+        context,
+        CONVERSION_CONTEXT_KEYS,
+        CONVERSION_CONTEXT_LABELS,
+        'BUSINESS-PROVIDED CONTEXT (use this to make feedback specific, not generic):'
+      );
 
       const funnelCriteria = {
         top: {
@@ -309,8 +371,9 @@ ${pacingContext}
 FUNNEL STAGE: ${stage.label}
 
 ${stage.criteria}
-
+${businessContextBlock ? `\n${businessContextBlock}\n` : ''}
 Identify the TOP 5 most impactful issues. Do not use emojis anywhere.
+${businessContextBlock ? 'Judge every issue against the specific buyer, objection, and offer above — not generic funnel-stage advice. Name the objection or buyer directly where it sharpens the feedback.' : ''}
 
 Also provide:
 - conversion_score: 0-100
@@ -351,11 +414,12 @@ Raw analysis:
 ${JSON.stringify(convParsed1, null, 2)}
 
 Funnel stage: ${stage.label}
-
+${businessContextBlock ? `\n${businessContextBlock}\n` : ''}
 For each of the 5 issues write:
 - title: short punchy title (no emojis)
 - psychFact: 2-3 sentences on why this matters at this funnel stage
 - fix: EXACTLY 2-3 dummy-proof sentences with campaign-aware guidance
+${businessContextBlock ? 'Reference the specific buyer, objection, or offer above directly in the fixes where relevant — make this feel built for this exact business, not generic funnel advice.' : ''}
 
 Keep conversion_score and funnel_fit_score. Add labels (Poor/Fair/Good/Strong).
 

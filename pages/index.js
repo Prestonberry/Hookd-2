@@ -115,16 +115,16 @@ const VIRALITY_QUESTIONS = [
 const CONVERSION_QUESTIONS = [
   {
     id: 'desiredAction',
-    question: 'What is the exact action you want people to take?',
-    helper: 'e.g. "book a call," "start free trial," "buy now," "join waitlist"',
-    options: ['Book a call', 'Start free trial', 'Buy now', 'Join waitlist', 'Download guide'],
+    question: 'What is the goal of this ad?',
+    helper: 'Pick the closest match, or describe your own.',
+    options: ['Get people to follow us', 'Get people to buy from us', 'Warm people up to the idea of us', 'Build trust with our audience', 'Get people to learn more about us'],
     freeText: true,
     required: true,
   },
   {
     id: 'buyerProfile',
-    question: 'Who is the buyer, and what problem are they already aware of?',
-    helper: 'e.g. "UGC agencies who know their ads are underperforming"',
+    question: 'Who is the buyer, and what problem of theirs are you solving?',
+    helper: 'e.g. "UGC agencies whose ads are underperforming"',
     options: [],
     freeText: true,
     required: true,
@@ -334,7 +334,7 @@ export default function Home() {
 
   const analyzeVideo = async () => {
     const canProceed = await checkAndIncrementUsage('analyze');
-    if (!canProceed) return;
+    if (!canProceed) { setError(true); return; }
     setLoading(true); setError(false); setLoadingStep(1); setLoadingMsg(viralitySteps[0]);
     try {
       const frames = await extractFrames(videoFile, 20);
@@ -358,13 +358,14 @@ export default function Home() {
       setLoadingStep(5); setLoadingMsg(viralitySteps[4]);
       if (!res.ok) throw new Error('Analysis failed');
       setResults(await res.json());
+      setShowViralityQuiz(false);
     } catch (err) { console.error(err); setError(true); }
     finally { setLoading(false); setLoadingStep(0); setLoadingMsg(''); }
   };
 
   const analyzeConversion = async () => {
     const canProceed = await checkAndIncrementUsage('conversion');
-    if (!canProceed) return;
+    if (!canProceed) { setConvError(true); return; }
     setConvLoading(true); setConvError(false); setLoadingStep(1); setLoadingMsg(convSteps[0]);
     try {
       const frames = await extractFrames(convFile, 20);
@@ -388,6 +389,7 @@ export default function Home() {
       setLoadingStep(5); setLoadingMsg(convSteps[4]);
       if (!res.ok) throw new Error('Analysis failed');
       setConvResults(await res.json());
+      setShowConversionQuiz(false);
     } catch (err) { console.error(err); setConvError(true); }
     finally { setConvLoading(false); setLoadingStep(0); setLoadingMsg(''); }
   };
@@ -635,14 +637,17 @@ export default function Home() {
               </>
             )}
             {videoFile && !loading && !results && showViralityQuiz && (
-              <ContextQuiz
-                questions={VIRALITY_QUESTIONS}
-                step={viralityQuizStep}
-                setStep={setViralityQuizStep}
-                answers={viralityAnswers}
-                setAnswers={setViralityAnswers}
-                onComplete={() => { setShowViralityQuiz(false); analyzeVideo(); }}
-              />
+              <>
+                {error && <div className="checkout-error" style={{ marginBottom: 16 }}>You've hit your monthly Virality Score limit, or something went wrong. Please check your usage or try again.</div>}
+                <ContextQuiz
+                  questions={VIRALITY_QUESTIONS}
+                  step={viralityQuizStep}
+                  setStep={setViralityQuizStep}
+                  answers={viralityAnswers}
+                  setAnswers={setViralityAnswers}
+                  onComplete={() => { analyzeVideo(); }}
+                />
+              </>
             )}
             {loading && (
               <div className="loading-state">
@@ -789,14 +794,17 @@ export default function Home() {
               </>
             )}
             {convFile && !convLoading && !convResults && showConversionQuiz && (
-              <ContextQuiz
-                questions={CONVERSION_QUESTIONS}
-                step={conversionQuizStep}
-                setStep={setConversionQuizStep}
-                answers={conversionAnswers}
-                setAnswers={setConversionAnswers}
-                onComplete={() => { setShowConversionQuiz(false); analyzeConversion(); }}
-              />
+              <>
+                {convError && <div className="checkout-error" style={{ marginBottom: 16 }}>You've hit your monthly Conversion Score limit, or something went wrong. Please check your usage or try again.</div>}
+                <ContextQuiz
+                  questions={CONVERSION_QUESTIONS}
+                  step={conversionQuizStep}
+                  setStep={setConversionQuizStep}
+                  answers={conversionAnswers}
+                  setAnswers={setConversionAnswers}
+                  onComplete={() => { analyzeConversion(); }}
+                />
+              </>
             )}
             {convLoading && (
               <div className="loading-state">

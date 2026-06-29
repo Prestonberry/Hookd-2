@@ -894,6 +894,7 @@ export default function Home() {
           <textarea className="script-input" placeholder={hookType === 'typed' ? 'Paste your typed hook or on-screen text here...' : 'Paste your opening line here...'} value={hookScript} onChange={(e) => setHookScript(e.target.value)} rows={3} />
           <textarea className="script-input" placeholder="Optional: What is this video about? Give context so we preserve your message." value={hookContext} onChange={(e) => setHookContext(e.target.value)} rows={3} style={{ marginTop: 10, borderColor: '#C9B8A2' }} />
           <button className="analyze-btn" onClick={() => reHook(false)} disabled={hookLoading || !hookScript.trim()}>{hookLoading ? 'Rewriting...' : 'Rewrite My Hook'}</button>
+          {hookError && !hookResults && <div className="checkout-error" style={{ marginTop: 12 }}>{hookError}</div>}
           {hookLoading && <div className="loading-state"><div className="loading-spinner" /><h3>Rewriting 5 ways...</h3></div>}
           {hookResults && (
             <div className="hook-results">

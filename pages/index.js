@@ -67,164 +67,6 @@ async function extractAudio(file) {
 
 const FREE_LIMIT = 3;
 
-// Each question: id (maps to payload key), question text, helper text,
-// options (dropdown choices), and whether free-text is allowed alongside.
-const VIRALITY_QUESTIONS = [
-  {
-    id: 'targetAudience',
-    question: 'Who is this video trying to attract?',
-    helper: 'e.g. "college girls into fitness," "young founders," "men into self-improvement"',
-    options: [],
-    freeText: true,
-    required: true,
-  },
-  {
-    id: 'videoGoal',
-    question: 'What do you want this video to do?',
-    helper: 'Pick the closest match, or describe your own.',
-    options: ['Get followers', 'Get shares', 'Start a debate', 'Build trust', 'Get profile visits', 'Go viral broadly'],
-    freeText: true,
-    required: true,
-  },
-  {
-    id: 'targetEmotion',
-    question: 'What is the main emotion or reaction you want viewers to feel?',
-    helper: 'This helps us judge whether your pacing and hook actually deliver on that feeling.',
-    options: ['Curious', 'Called out', 'Inspired', 'Entertained', 'Understood', 'Shocked', 'Motivated'],
-    freeText: true,
-    required: true,
-  },
-  {
-    id: 'creatorIdentity',
-    question: 'What type of creator are you trying to be seen as?',
-    helper: 'e.g. "funny big sister," "luxury fitness guy," "chaotic honest friend"',
-    options: [],
-    freeText: true,
-    required: true,
-  },
-  {
-    id: 'recentPattern',
-    question: "What's been working or not working for you recently?",
-    helper: 'Optional — e.g. "My storytimes do well, but educational videos flop."',
-    options: [],
-    freeText: true,
-    required: false,
-  },
-];
-
-const CONVERSION_QUESTIONS = [
-  {
-    id: 'desiredAction',
-    question: 'What is the goal of this ad?',
-    helper: 'Pick the closest match, or describe your own.',
-    options: ['Get people to follow us', 'Get people to buy from us', 'Warm people up to the idea of us', 'Build trust with our audience', 'Get people to learn more about us'],
-    freeText: true,
-    required: true,
-  },
-  {
-    id: 'buyerProfile',
-    question: 'Who is the buyer, and what problem of theirs are you solving?',
-    helper: 'e.g. "UGC agencies whose ads are underperforming"',
-    options: [],
-    freeText: true,
-    required: true,
-  },
-  {
-    id: 'mainObjection',
-    question: 'What is the main objection stopping them from buying?',
-    helper: 'This is what your video needs to overcome.',
-    options: ['Too expensive', "Don't trust it", "Don't need it yet", 'Tried something similar', 'Confused how it works', 'Need proof'],
-    freeText: true,
-    required: true,
-  },
-  {
-    id: 'industry',
-    question: 'What industry or niche is this for?',
-    helper: 'e.g. "fitness coaching," "B2B SaaS," "skincare"',
-    options: [],
-    freeText: true,
-    required: true,
-  },
-  {
-    id: 'offerDetails',
-    question: 'What offer, price, or promise is being sold?',
-    helper: 'Optional — e.g. "$29/month AI video feedback tool"',
-    options: [],
-    freeText: true,
-    required: false,
-  },
-];
-
-function ContextQuiz({ questions, step, setStep, answers, setAnswers, onComplete, accent = '#8B4A2F' }) {
-  const q = questions[step];
-  const value = answers[q.id] || '';
-  const isLast = step === questions.length - 1;
-  const canAdvance = q.required ? value.trim().length > 0 : true;
-
-  const setValue = (v) => setAnswers(prev => ({ ...prev, [q.id]: v }));
-
-  const advance = () => {
-    if (!canAdvance) return;
-    if (isLast) { onComplete(); return; }
-    setStep(step + 1);
-  };
-
-  const goBack = () => { if (step > 0) setStep(step - 1); };
-
-  return (
-    <div className="quiz-wrap">
-      <div className="quiz-progress">
-        {questions.map((_, i) => (
-          <div key={i} className={`quiz-dot ${i === step ? 'quiz-dot-active' : i < step ? 'quiz-dot-done' : ''}`} style={i <= step ? { background: accent } : {}} />
-        ))}
-      </div>
-      <div className="quiz-step-label">Question {step + 1} of {questions.length}{!q.required ? ' (optional)' : ''}</div>
-      <h3 className="quiz-question">{q.question}</h3>
-      {q.helper && <p className="quiz-helper">{q.helper}</p>}
-
-      {q.options.length > 0 && (
-        <div className="quiz-options">
-          {q.options.map(opt => (
-            <button
-              key={opt}
-              className={`quiz-option-btn ${value === opt ? 'quiz-option-active' : ''}`}
-              style={value === opt ? { borderColor: accent, background: accent + '14', color: accent } : {}}
-              onClick={() => setValue(opt)}
-            >
-              {opt}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {q.freeText && (
-        <input
-          className="quiz-freetext"
-          type="text"
-          placeholder={q.options.length > 0 ? 'Or type your own answer...' : 'Type your answer...'}
-          value={q.options.includes(value) ? '' : value}
-          onChange={(e) => setValue(e.target.value)}
-        />
-      )}
-
-      <div className="quiz-nav-row">
-        <button className="quiz-back-btn" onClick={goBack} disabled={step === 0}>Back</button>
-        {!q.required && !value.trim() && (
-          <button className="quiz-skip-btn" onClick={() => { setValue(''); advance(); }}>Skip</button>
-        )}
-        <button
-          className="quiz-next-btn"
-          style={canAdvance ? { background: accent } : {}}
-          onClick={advance}
-          disabled={!canAdvance}
-        >
-          {isLast ? 'Done' : 'Next'}
-        </button>
-      </div>
-    </div>
-  );
-}
-
 export default function Home() {
   const router = useRouter();
   const { isLoaded, isSignedIn, user } = useUser();
@@ -235,9 +77,6 @@ export default function Home() {
   const [videoFile, setVideoFile] = useState(null);
   const [videoUrl, setVideoUrl] = useState(null);
   const [contentType, setContentType] = useState('');
-  const [viralityAnswers, setViralityAnswers] = useState({});
-  const [showViralityQuiz, setShowViralityQuiz] = useState(false);
-  const [viralityQuizStep, setViralityQuizStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [loadingStep, setLoadingStep] = useState(0);
   const [loadingMsg, setLoadingMsg] = useState('');
@@ -249,9 +88,6 @@ export default function Home() {
   const [convFile, setConvFile] = useState(null);
   const [convUrl, setConvUrl] = useState(null);
   const [funnelStage, setFunnelStage] = useState('');
-  const [conversionAnswers, setConversionAnswers] = useState({});
-  const [showConversionQuiz, setShowConversionQuiz] = useState(false);
-  const [conversionQuizStep, setConversionQuizStep] = useState(0);
   const [convLoading, setConvLoading] = useState(false);
   const [convResults, setConvResults] = useState(null);
   const [convError, setConvError] = useState(false);
@@ -318,7 +154,6 @@ export default function Home() {
     if (!file || !file.type.startsWith('video/')) return;
     setVideoFile(file); setVideoUrl(URL.createObjectURL(file));
     setResults(null); setError(false);
-    setShowViralityQuiz(false); setViralityQuizStep(0); setViralityAnswers({});
   };
 
   const handleConvFile = (file) => {
@@ -326,7 +161,6 @@ export default function Home() {
     if (!file || !file.type.startsWith('video/')) return;
     setConvFile(file); setConvUrl(URL.createObjectURL(file));
     setConvResults(null); setConvError(false);
-    setShowConversionQuiz(false); setConversionQuizStep(0); setConversionAnswers({});
   };
 
   const viralitySteps = ['Extracting frames...', 'Getting video info...', 'Checking audio...', 'Analyzing content...', 'Writing recommendations...'];
@@ -334,7 +168,7 @@ export default function Home() {
 
   const analyzeVideo = async () => {
     const canProceed = await checkAndIncrementUsage('analyze');
-    if (!canProceed) { setError(true); return; }
+    if (!canProceed) return;
     setLoading(true); setError(false); setLoadingStep(1); setLoadingMsg(viralitySteps[0]);
     try {
       const frames = await extractFrames(videoFile, 20);
@@ -351,21 +185,19 @@ export default function Home() {
           platform: 'TikTok', contentType, filesize: videoFile?.size || 0,
           frames, hasAudio, videoDuration: meta?.duration || 0,
           videoWidth: meta?.width || 0, videoHeight: meta?.height || 0,
-          isVertical: meta?.isVertical ?? true, cutCount: 0,
-          context: viralityAnswers
+          isVertical: meta?.isVertical ?? true, cutCount: 0
         })
       });
       setLoadingStep(5); setLoadingMsg(viralitySteps[4]);
       if (!res.ok) throw new Error('Analysis failed');
       setResults(await res.json());
-      setShowViralityQuiz(false);
     } catch (err) { console.error(err); setError(true); }
     finally { setLoading(false); setLoadingStep(0); setLoadingMsg(''); }
   };
 
   const analyzeConversion = async () => {
     const canProceed = await checkAndIncrementUsage('conversion');
-    if (!canProceed) { setConvError(true); return; }
+    if (!canProceed) return;
     setConvLoading(true); setConvError(false); setLoadingStep(1); setLoadingMsg(convSteps[0]);
     try {
       const frames = await extractFrames(convFile, 20);
@@ -383,13 +215,11 @@ export default function Home() {
           frames, hasAudio, videoDuration: meta?.duration || 0,
           videoWidth: meta?.width || 0, videoHeight: meta?.height || 0,
           isVertical: meta?.isVertical ?? true,
-          context: conversionAnswers
         })
       });
       setLoadingStep(5); setLoadingMsg(convSteps[4]);
       if (!res.ok) throw new Error('Analysis failed');
       setConvResults(await res.json());
-      setShowConversionQuiz(false);
     } catch (err) { console.error(err); setConvError(true); }
     finally { setConvLoading(false); setLoadingStep(0); setLoadingMsg(''); }
   };
@@ -425,8 +255,8 @@ export default function Home() {
     finally { setHookLoading(false); }
   };
 
-  const resetAnalyze = () => { setResults(null); setVideoFile(null); setVideoUrl(null); setError(false); setContentType(''); setViralityAnswers({}); setShowViralityQuiz(false); setViralityQuizStep(0); };
-  const resetConv = () => { setConvResults(null); setConvFile(null); setConvUrl(null); setConvError(false); setFunnelStage(''); setConversionAnswers({}); setShowConversionQuiz(false); setConversionQuizStep(0); };
+  const resetAnalyze = () => { setResults(null); setVideoFile(null); setVideoUrl(null); setError(false); setContentType(''); };
+  const resetConv = () => { setConvResults(null); setConvFile(null); setConvUrl(null); setConvError(false); setFunnelStage(''); };
 
   const ic = (imp) => {
     if (!imp) return '#888';
@@ -603,7 +433,7 @@ export default function Home() {
                 </div>
               </div>
             )}
-            {videoFile && !loading && !results && !showViralityQuiz && (
+            {videoFile && !loading && !results && (
               <>
                 <div className="video-preview">
                   <video src={videoUrl} controls playsInline style={{ minHeight: "200px" }} />
@@ -627,26 +457,9 @@ export default function Home() {
                     ))}
                   </div>
                 </div>
-                <button
-                  className="analyze-btn"
-                  onClick={() => { setViralityQuizStep(0); setShowViralityQuiz(true); }}
-                  disabled={!contentType}
-                >
-                  {contentType ? 'Continue' : 'Select a content type first'}
+                <button className="analyze-btn" onClick={analyzeVideo} disabled={!contentType}>
+                  {error ? 'Something went wrong — try again' : contentType ? 'Get My Virality Score' : 'Select a content type first'}
                 </button>
-              </>
-            )}
-            {videoFile && !loading && !results && showViralityQuiz && (
-              <>
-                {error && <div className="checkout-error" style={{ marginBottom: 16 }}>You've hit your monthly Virality Score limit, or something went wrong. Please check your usage or try again.</div>}
-                <ContextQuiz
-                  questions={VIRALITY_QUESTIONS}
-                  step={viralityQuizStep}
-                  setStep={setViralityQuizStep}
-                  answers={viralityAnswers}
-                  setAnswers={setViralityAnswers}
-                  onComplete={() => { analyzeVideo(); }}
-                />
               </>
             )}
             {loading && (
@@ -761,7 +574,7 @@ export default function Home() {
                 </div>
               </div>
             )}
-            {convFile && !convLoading && !convResults && !showConversionQuiz && (
+            {convFile && !convLoading && !convResults && (
               <>
                 <div className="video-preview">
                   <video src={convUrl} controls playsInline style={{ minHeight: "200px" }} />
@@ -784,26 +597,9 @@ export default function Home() {
                     ))}
                   </div>
                 </div>
-                <button
-                  className="analyze-btn"
-                  onClick={() => { setConversionQuizStep(0); setShowConversionQuiz(true); }}
-                  disabled={!funnelStage}
-                >
-                  {funnelStage ? 'Continue' : 'Select your funnel stage first'}
+                <button className="analyze-btn" onClick={analyzeConversion} disabled={!funnelStage}>
+                  {convError ? 'Something went wrong — try again' : funnelStage ? 'Get My Conversion Score' : 'Select your funnel stage first'}
                 </button>
-              </>
-            )}
-            {convFile && !convLoading && !convResults && showConversionQuiz && (
-              <>
-                {convError && <div className="checkout-error" style={{ marginBottom: 16 }}>You've hit your monthly Conversion Score limit, or something went wrong. Please check your usage or try again.</div>}
-                <ContextQuiz
-                  questions={CONVERSION_QUESTIONS}
-                  step={conversionQuizStep}
-                  setStep={setConversionQuizStep}
-                  answers={conversionAnswers}
-                  setAnswers={setConversionAnswers}
-                  onComplete={() => { analyzeConversion(); }}
-                />
               </>
             )}
             {convLoading && (
@@ -894,7 +690,6 @@ export default function Home() {
           <textarea className="script-input" placeholder={hookType === 'typed' ? 'Paste your typed hook or on-screen text here...' : 'Paste your opening line here...'} value={hookScript} onChange={(e) => setHookScript(e.target.value)} rows={3} />
           <textarea className="script-input" placeholder="Optional: What is this video about? Give context so we preserve your message." value={hookContext} onChange={(e) => setHookContext(e.target.value)} rows={3} style={{ marginTop: 10, borderColor: '#C9B8A2' }} />
           <button className="analyze-btn" onClick={() => reHook(false)} disabled={hookLoading || !hookScript.trim()}>{hookLoading ? 'Rewriting...' : 'Rewrite My Hook'}</button>
-          {hookError && !hookResults && <div className="checkout-error" style={{ marginTop: 12 }}>{hookError}</div>}
           {hookLoading && <div className="loading-state"><div className="loading-spinner" /><h3>Rewriting 5 ways...</h3></div>}
           {hookResults && (
             <div className="hook-results">
@@ -1011,24 +806,6 @@ export default function Home() {
         .ct-desc { font-size: 12px; color: #999; line-height: 1.4; }
         .content-type-btn.active .ct-desc { color: rgba(139,74,47,0.7); }
         .hook-type-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-        .quiz-wrap { background: #F4EEE5; border: 1px solid #DDD0BF; border-radius: 16px; padding: 28px 26px; margin-top: 20px; }
-        .quiz-progress { display: flex; gap: 6px; margin-bottom: 18px; }
-        .quiz-dot { flex: 1; height: 4px; border-radius: 2px; background: #DDD0BF; transition: background 0.2s; }
-        .quiz-dot-done { background: #C9B8A2; }
-        .quiz-step-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: #8B7A68; margin-bottom: 10px; font-family: 'Inter', sans-serif; }
-        .quiz-question { font-family: 'Archivo Black', sans-serif; font-size: 22px; font-weight: 700; line-height: 1.3; color: #2B2018; margin-bottom: 8px; }
-        .quiz-helper { font-size: 13px; color: #8B7A68; line-height: 1.5; margin-bottom: 18px; font-family: 'Inter', sans-serif; }
-        .quiz-options { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
-        .quiz-option-btn { background: #FFFFFF; border: 1.5px solid #DDD0BF; color: #6B5D4F; padding: 10px 16px; border-radius: 20px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.15s; font-family: 'Inter', sans-serif; }
-        .quiz-option-btn:hover { border-color: #8B4A2F; }
-        .quiz-freetext { width: 100%; background: #FFFFFF; border: 1.5px solid #DDD0BF; border-radius: 10px; padding: 14px 16px; font-size: 14px; color: #2B2018; font-family: 'Inter', sans-serif; margin-bottom: 4px; }
-        .quiz-freetext:focus { outline: none; border-color: #8B4A2F; }
-        .quiz-nav-row { display: flex; align-items: center; gap: 10px; margin-top: 20px; }
-        .quiz-back-btn { background: transparent; border: 1px solid #C9B8A2; color: #8B7A68; padding: 12px 18px; border-radius: 10px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: 'Inter', sans-serif; }
-        .quiz-back-btn:disabled { opacity: 0.3; cursor: not-allowed; }
-        .quiz-skip-btn { background: transparent; border: none; color: #AAA; padding: 12px 14px; font-size: 13px; cursor: pointer; font-family: 'Inter', sans-serif; text-decoration: underline; }
-        .quiz-next-btn { margin-left: auto; background: #8B4A2F; color: #EDE6DC; border: none; padding: 12px 28px; border-radius: 10px; font-family: 'Archivo Black', sans-serif; font-size: 14px; font-weight: 700; cursor: pointer; }
-        .quiz-next-btn:disabled { background: #C9B8A2; color: #999; cursor: not-allowed; }
         .hook-type-btn { background: #F4EEE5; border: 1px solid #DDD0BF; color: #888; padding: 16px; border-radius: 12px; cursor: pointer; transition: all 0.15s; font-family: 'Inter', sans-serif; text-align: left; }
         .hook-type-btn:hover { border-color: #8B4A2F; color: #2B2018; background: rgba(139,74,47,0.04); }
         .hook-type-btn.active { background: rgba(139,74,47,0.08); border-color: #8B4A2F; color: #8B4A2F; }
